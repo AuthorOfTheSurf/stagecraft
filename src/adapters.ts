@@ -85,6 +85,47 @@ export const discord = ({ webhookUrl }: { webhookUrl: string }): MonitorAdapter 
       reportEmbed(r, `Report ${r.reportId}`, 0xe74c3c),
     );
 
+const mrkdwnSection = (label: string, body: string) => ({
+  type: "section",
+  // Slack caps a section's text at 3000 chars; the fence + label eat a few.
+  text: { type: "mrkdwn", text: `*${label}*\n${codeBlock(body, 2900)}` },
+});
+
+const reportBlocks = (r: UnexpectedReport, title: string) => [
+  { type: "header", text: { type: "plain_text", text: clip(title, 150) } },
+  {
+    type: "context",
+    elements: [{ type: "mrkdwn", text: `\`${r.actor}.${r.action}\` · ${new Date(r.at).toISOString()}` }],
+  },
+  mrkdwnSection("payload", JSON.stringify(r.payload)),
+  mrkdwnSection("state", JSON.stringify(r.state)),
+  mrkdwnSection("stack", r.error.stack ?? "(no stack)"),
+];
+
+const postSlack = async (webhookUrl: string, text: string, blocks: unknown[]) => {
+  const res = await fetch(webhookUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    // `text` doubles as the notification/fallback line when blocks render.
+    body: JSON.stringify({ text, blocks: [{ type: "section", text: { type: "mrkdwn", text } }, ...blocks] }),
+  });
+  if (!res.ok) throw new Error(`slack webhook: HTTP ${res.status}`);
+};
+
+/**
+ * Post EVERY report to a Slack channel via an Incoming Webhook — no
+ * grouping, floods on a hot loop. Prefer `alertWith(tracker, slackAlert({webhookUrl}))`.
+ * Webhook setup: api.slack.com/apps → create app → Incoming Webhooks →
+ * activate → Add New Webhook to Workspace → pick a channel → copy the URL.
+ */
+export const slack = ({ webhookUrl }: { webhookUrl: string }): MonitorAdapter =>
+  (r) =>
+    postSlack(
+      webhookUrl,
+      `🚨 *UnexpectedError* in \`${r.actor}.${r.action}\` — ${r.error.name}: ${clip(r.error.message, 300)}`,
+      reportBlocks(r, `Report ${r.reportId}`),
+    );
+
 // ---------------------------------------------------------------------------
 // Issue-level alerting (the Sentry policy): new issues and regressions
 // alert; recurrences only count. Plug adapters into an issueTracker.
@@ -110,6 +151,16 @@ export const stdoutAlert = (): IssueAlertAdapter => (ev) => {
     : `NEW ISSUE: ${ev.issue.title}`;
   console.error(`${head}\n${format(ev.report)}`);
 };
+
+export const slackAlert = ({ webhookUrl }: { webhookUrl: string }): IssueAlertAdapter =>
+  (ev) =>
+    postSlack(
+      webhookUrl,
+      ev.kind === "regression"
+        ? `🔥 *REGRESSION* — resolved issue is back (${ev.issue.count}× total): \`${clip(ev.issue.title, 200)}\``
+        : `🆕 *New issue*: \`${clip(ev.issue.title, 200)}\``,
+      reportBlocks(ev.report, `Issue ${clip(ev.issue.fingerprint, 140)}`),
+    );
 
 export const discordAlert = ({ webhookUrl }: { webhookUrl: string }): IssueAlertAdapter =>
   (ev) =>

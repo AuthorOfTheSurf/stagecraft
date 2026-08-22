@@ -2,7 +2,7 @@
 
 Plain actors on [Rivet](https://rivet.dev), with the production run smoothly.
 
-**stagecraft** is an ergonomic layer over [`@rivetkit/effect`](https://www.npmjs.com/package/@rivetkit/effect): you write actors as plain async handlers and get durable state, one-message-at-a-time semantics, typed errors, scheduling, and events — without learning the underlying Effect machinery first. It also ships the crew that keeps a show running: an unexpected-error channel with agent-patchable reports, Sentry-style issue grouping with regression alerts, pluggable sinks (stdout, Discord), and a live monitor panel.
+**stagecraft** is an ergonomic layer over [`@rivetkit/effect`](https://www.npmjs.com/package/@rivetkit/effect): you write actors as plain async handlers and get durable state, one-message-at-a-time semantics, typed errors, scheduling, and events — without learning the underlying Effect machinery first. It also ships the crew that keeps a show running: an unexpected-error channel with agent-patchable reports, Sentry-style issue grouping with regression alerts, pluggable sinks (stdout, Discord, Slack), and a live monitor panel.
 
 > **Status: exploratory v0.** This is an independent design exploration, not an official Rivet project. Every exported name is a placeholder. The `@rivetkit/effect` dependency is pinned; upstream changes are pulled in deliberately.
 
@@ -44,10 +44,10 @@ A thrown error nobody declared doesn't vanish into a masked `internal_error`. It
 3. an **issue**: reports group by fingerprint, Sentry-style. New issues alert; recurrences count quietly; a *resolved* issue that returns alerts loudly as a **REGRESSION** and reopens.
 
 ```ts
-import { issueTracker, alertWith, stdoutAlert, discordAlert, startPanel } from "@authorofthesurf/stagecraft";
+import { issueTracker, alertWith, stdoutAlert, discordAlert, slackAlert, startPanel } from "@authorofthesurf/stagecraft";
 
 const tracker = issueTracker();
-alertWith(tracker, stdoutAlert(), discordAlert({ webhookUrl }));
+alertWith(tracker, stdoutAlert(), discordAlert({ webhookUrl }), slackAlert({ webhookUrl: slackUrl }));
 startPanel({ tracker });   // live web panel: actors, issues, failure feed
 ```
 
@@ -60,7 +60,7 @@ bun install
 bun run demo          # boots a real engine, opens http://localhost:4949
 ```
 
-A referee actor scores rock-paper-scissors rounds and carries a realistic bug: the developer handled both winners and forgot that `winnerOf` can return `"draw"`. Watch the issue appear, click **Resolve**, and wait a few rounds for the 🔥 regression. `DISCORD_WEBHOOK_URL=…` adds Discord alerts; `DEMO_TICK_MS=8000` slows the pace.
+A referee actor scores rock-paper-scissors rounds and carries a realistic bug: the developer handled both winners and forgot that `winnerOf` can return `"draw"`. Watch the issue appear, click **Resolve**, and wait a few rounds for the 🔥 regression. `DISCORD_WEBHOOK_URL=…` adds Discord alerts; `SLACK_WEBHOOK_URL=…` adds Slack alerts (setup from zero, Slack account included: [`docs/qa/slack-adapter.md`](docs/qa/slack-adapter.md)); `DEMO_TICK_MS=8000` slows the pace.
 
 ```sh
 bun test              # the full suite, against a real local engine
@@ -74,7 +74,7 @@ bun test              # the full suite, against a real local engine
 | [`src/chat.ts`](src/chat.ts) | The chat-room exhibit — the launch-post app at level 0 |
 | [`src/monitor-demo.ts`](src/monitor-demo.ts) | The Referee with the forgotten-draw bug |
 | [`src/issues.ts`](src/issues.ts) | Fingerprint grouping + the new/recurrence/regression policy |
-| [`src/adapters.ts`](src/adapters.ts) | Composable sinks: per-report `watch(...)` and issue-level `alertWith(...)` |
+| [`src/adapters.ts`](src/adapters.ts) | Composable sinks: per-report `watch(...)` and issue-level `alertWith(...)` — stdout, Discord, Slack |
 | [`src/panel.ts`](src/panel.ts) | The live panel: actors + QUIET watchdog, issues + Resolve, failure feed (SSE, zero deps) |
 | [`src/demo-panel.ts`](src/demo-panel.ts) | The runnable demo |
 | [`src/engine-hygiene.ts`](src/engine-hygiene.ts) | Reaps orphaned `rivet-engine` processes that would poison the next run |

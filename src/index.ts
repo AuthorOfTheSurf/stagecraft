@@ -27,9 +27,11 @@ export {
   format,
   stdout,
   discord,
+  slack,
   alertWith,
   stdoutAlert,
   discordAlert,
+  slackAlert,
   type MonitorAdapter,
   type IssueAlertAdapter,
 } from "./adapters.ts";

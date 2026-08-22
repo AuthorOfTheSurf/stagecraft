@@ -6,7 +6,7 @@
  *   bun src/actors/proposed-simple-sdk/demo-panel.ts
  *   DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/… bun src/actors/proposed-simple-sdk/demo-panel.ts
  */
-import { alertWith, discordAlert, stdoutAlert } from "./adapters.ts";
+import { alertWith, discordAlert, slackAlert, stdoutAlert } from "./adapters.ts";
 import { ChatRoom, Moderator } from "./chat.ts";
 import { reapOrphanEngines } from "./engine-hygiene.ts";
 import { issueTracker } from "./issues.ts";
@@ -20,9 +20,16 @@ import { startPanel } from "./panel.ts";
 // count. Resolve an issue in the panel, wait for it to recur, and watch
 // the regression come through loud.
 const tracker = issueTracker();
-const webhookUrl = process.env["DISCORD_WEBHOOK_URL"];
-alertWith(tracker, stdoutAlert(), ...(webhookUrl ? [discordAlert({ webhookUrl })] : []));
-if (!webhookUrl) console.log("(set DISCORD_WEBHOOK_URL to also alert to Discord)");
+const discordUrl = process.env["DISCORD_WEBHOOK_URL"];
+const slackUrl = process.env["SLACK_WEBHOOK_URL"];
+alertWith(
+  tracker,
+  stdoutAlert(),
+  ...(discordUrl ? [discordAlert({ webhookUrl: discordUrl })] : []),
+  ...(slackUrl ? [slackAlert({ webhookUrl: slackUrl })] : []),
+);
+if (!discordUrl) console.log("(set DISCORD_WEBHOOK_URL to also alert to Discord)");
+if (!slackUrl) console.log("(set SLACK_WEBHOOK_URL to also alert to Slack)");
 
 const panel = startPanel({ tracker });
 console.log(`monitor panel: ${panel.url}`);

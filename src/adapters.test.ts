@@ -4,7 +4,7 @@
  * real webhook is demo-panel.ts's job, not the suite's).
  */
 import { expect, test } from "bun:test";
-import { discord, dispatch, format, stdout } from "./adapters.ts";
+import { discord, dispatch, format, slack, stdout } from "./adapters.ts";
 import type { UnexpectedReport } from "./layer.ts";
 
 const report: UnexpectedReport = {
@@ -53,6 +53,30 @@ test("discord adapter posts a webhook payload under Discord's limits", async () 
   const embed = captured!.body.embeds[0];
   expect(embed.fields.map((f: any) => f.name)).toEqual(["payload", "state", "stack"]);
   for (const f of embed.fields) expect(f.value.length).toBeLessThanOrEqual(1024);
+});
+
+test("slack adapter posts Block Kit under Slack's limits", async () => {
+  let captured: { url: string; body: any } | undefined;
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (url: any, init: any) => {
+    captured = { url: String(url), body: JSON.parse(init.body) };
+    return new Response("ok", { status: 200 });
+  }) as typeof fetch;
+  try {
+    await slack({ webhookUrl: "https://hooks.slack.com/services/T000/B000/test" })(report);
+  } finally {
+    globalThis.fetch = original;
+  }
+  expect(captured!.url).toContain("hooks.slack.com");
+  expect(captured!.body.text).toContain("Referee.Play");        // notification fallback line
+  const blocks = captured!.body.blocks;
+  expect(blocks.length).toBeLessThanOrEqual(50);                // Slack's block cap
+  const header = blocks.find((b: any) => b.type === "header");
+  expect(header.text.text.length).toBeLessThanOrEqual(150);     // header text cap
+  const sections = blocks.filter((b: any) => b.type === "section" && b.text?.type === "mrkdwn");
+  for (const s of sections) expect(s.text.text.length).toBeLessThanOrEqual(3000); // section text cap
+  const joined = sections.map((s: any) => s.text.text).join("\n");
+  for (const needle of ["payload", "state", "stack", "rock", "wins"]) expect(joined).toContain(needle);
 });
 
 test("dispatch fans one report out to every adapter; a broken sink doesn't mask the rest", async () => {
