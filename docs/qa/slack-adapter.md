@@ -38,7 +38,7 @@ Expected: `ok` on stdout and the message appears in your channel.
 ```sh
 cd ~/Repos/stagecraft
 bun install
-echo 'SLACK_WEBHOOK_URL=https://hooks.slack.com/services/…' >> .env.local
+cp .env.example .env.local   # gitignored; paste your webhook URL(s) in
 bun run demo
 ```
 
