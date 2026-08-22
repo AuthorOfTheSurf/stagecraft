@@ -46,6 +46,30 @@ export const stdout = (): MonitorAdapter => (r) => {
   console.error(format(r));
 };
 
+/**
+ * Fail fast at construction: a missing/garbled webhook URL should blow up
+ * where the adapter is wired, not surface later as a swallowed per-event
+ * fetch failure. Vendor-neutral on purpose — any absolute http(s) URL
+ * passes; we don't presume what a vendor's webhook paths look like.
+ */
+const requireWebhookUrl = (adapter: string, url: string | undefined): string => {
+  if (!url) {
+    throw new Error(
+      `${adapter}: webhookUrl is missing or empty — is the env var it comes from actually set?`,
+    );
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`${adapter}: webhookUrl is not a valid absolute URL (got ${JSON.stringify(url)})`);
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error(`${adapter}: webhookUrl must be http(s), got ${parsed.protocol}//…`);
+  }
+  return url;
+};
+
 const clip = (s: string, max: number) =>
   s.length <= max ? s : `${s.slice(0, max - 1)}…`;
 
@@ -77,13 +101,15 @@ const postDiscord = async (webhookUrl: string, content: string, embed: unknown) 
  * a hot loop. Prefer `alertWith(tracker, discordAlert({webhookUrl}))`.
  * Create a webhook under Server Settings → Integrations → Webhooks.
  */
-export const discord = ({ webhookUrl }: { webhookUrl: string }): MonitorAdapter =>
-  (r) =>
+export const discord = ({ webhookUrl }: { webhookUrl: string | undefined }): MonitorAdapter => {
+  const url = requireWebhookUrl("discord", webhookUrl);
+  return (r) =>
     postDiscord(
-      webhookUrl,
+      url,
       `🚨 **UnexpectedError** in \`${r.actor}.${r.action}\` — ${r.error.name}: ${clip(r.error.message, 300)}`,
       reportEmbed(r, `Report ${r.reportId}`, 0xe74c3c),
     );
+};
 
 const mrkdwnSection = (label: string, body: string) => ({
   type: "section",
@@ -118,13 +144,15 @@ const postSlack = async (webhookUrl: string, text: string, blocks: unknown[]) =>
  * Webhook setup: api.slack.com/apps → create app → Incoming Webhooks →
  * activate → Add New Webhook to Workspace → pick a channel → copy the URL.
  */
-export const slack = ({ webhookUrl }: { webhookUrl: string }): MonitorAdapter =>
-  (r) =>
+export const slack = ({ webhookUrl }: { webhookUrl: string | undefined }): MonitorAdapter => {
+  const url = requireWebhookUrl("slack", webhookUrl);
+  return (r) =>
     postSlack(
-      webhookUrl,
+      url,
       `🚨 *UnexpectedError* in \`${r.actor}.${r.action}\` — ${r.error.name}: ${clip(r.error.message, 300)}`,
       reportBlocks(r, `Report ${r.reportId}`),
     );
+};
 
 // ---------------------------------------------------------------------------
 // Issue-level alerting (the Sentry policy): new issues and regressions
@@ -152,22 +180,26 @@ export const stdoutAlert = (): IssueAlertAdapter => (ev) => {
   console.error(`${head}\n${format(ev.report)}`);
 };
 
-export const slackAlert = ({ webhookUrl }: { webhookUrl: string }): IssueAlertAdapter =>
-  (ev) =>
+export const slackAlert = ({ webhookUrl }: { webhookUrl: string | undefined }): IssueAlertAdapter => {
+  const url = requireWebhookUrl("slackAlert", webhookUrl);
+  return (ev) =>
     postSlack(
-      webhookUrl,
+      url,
       ev.kind === "regression"
         ? `🔥 *REGRESSION* — resolved issue is back (${ev.issue.count}× total): \`${clip(ev.issue.title, 200)}\``
         : `🆕 *New issue*: \`${clip(ev.issue.title, 200)}\``,
       reportBlocks(ev.report, `Issue ${clip(ev.issue.fingerprint, 140)}`),
     );
+};
 
-export const discordAlert = ({ webhookUrl }: { webhookUrl: string }): IssueAlertAdapter =>
-  (ev) =>
+export const discordAlert = ({ webhookUrl }: { webhookUrl: string | undefined }): IssueAlertAdapter => {
+  const url = requireWebhookUrl("discordAlert", webhookUrl);
+  return (ev) =>
     postDiscord(
-      webhookUrl,
+      url,
       ev.kind === "regression"
         ? `🔥 **REGRESSION** — resolved issue is back (${ev.issue.count}× total): \`${clip(ev.issue.title, 200)}\``
         : `🆕 **New issue**: \`${clip(ev.issue.title, 200)}\``,
       reportEmbed(ev.report, `Issue ${clip(ev.issue.fingerprint, 240)}`, ev.kind === "regression" ? 0xff5500 : 0xe74c3c),
     );
+};

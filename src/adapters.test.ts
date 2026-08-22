@@ -4,7 +4,7 @@
  * real webhook is demo-panel.ts's job, not the suite's).
  */
 import { expect, test } from "bun:test";
-import { discord, dispatch, format, slack, stdout } from "./adapters.ts";
+import { discord, discordAlert, dispatch, format, slack, slackAlert, stdout } from "./adapters.ts";
 import type { UnexpectedReport } from "./layer.ts";
 
 const report: UnexpectedReport = {
@@ -77,6 +77,17 @@ test("slack adapter posts Block Kit under Slack's limits", async () => {
   for (const s of sections) expect(s.text.text.length).toBeLessThanOrEqual(3000); // section text cap
   const joined = sections.map((s: any) => s.text.text).join("\n");
   for (const needle of ["payload", "state", "stack", "rock", "wins"]) expect(joined).toContain(needle);
+});
+
+test("webhook adapters fail fast at construction on a missing or garbled URL", () => {
+  for (const make of [slack, discord, slackAlert, discordAlert]) {
+    expect(() => make({ webhookUrl: undefined })).toThrow(/missing or empty/);
+    expect(() => make({ webhookUrl: "" })).toThrow(/missing or empty/);
+    // a paste that lost its scheme (the classic terminal line-wrap casualty)
+    expect(() => make({ webhookUrl: "hooks.slack.com/services/T000/B000/x" })).toThrow(/not a valid absolute URL/);
+    expect(() => make({ webhookUrl: "ftp://hooks.slack.com/x" })).toThrow(/http/);
+    expect(() => make({ webhookUrl: "https://example.com/anything" })).not.toThrow(); // vendor-neutral: any http(s) URL constructs
+  }
 });
 
 test("dispatch fans one report out to every adapter; a broken sink doesn't mask the rest", async () => {
