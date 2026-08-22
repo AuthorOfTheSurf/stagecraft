@@ -8,7 +8,7 @@ Rivet's actor primitive is excellent. Its current Effect SDK asks a newcomer to 
 
 The design requirements, in one breath: match the actor mental model (messages, handlers, state, visible by name); require no prerequisite ecosystem; pass the Stripe test (basic integration in 10–20 lines, ~20 minutes); be built *on* Effect, not hiding from it (graceful drop-down); and let a vague mental model start small and harden incrementally.
 
-## The disclosure ladder
+## The four levels
 
 - **Level 0** (what you see in `chat.ts`): plain async handlers, payload types on the signature, `throw fail.X()`, mutable state draft committed only on success, typed `emit` / `self.after(ms)` / `actors()`. One handler at a time per instance — the actor model's actual promise, delivered.
 - **Level 1**: opt into declared schemas for wire validation and a standalone client contract.

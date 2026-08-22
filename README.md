@@ -24,12 +24,16 @@ export const Counter = actor("Counter", {
 
 That's a durable, addressable, one-message-at-a-time actor. No `Effect.gen`, no `Layer`, no `yield*` — Effect is the implementation substrate underneath, not your problem. The flagship comparison: Rivet's launch-post chat room is 551 lines across 8 files in the raw Effect idiom; the same app on this layer is ~90 lines in one file ([`src/chat.ts`](src/chat.ts)) with zero Effect syntax in user code. Same engine, same wire format, same durability.
 
-## The disclosure ladder
+## Start small, grow in place
 
-- **Level 0** — what you see above: plain async handlers, payload types on the signature, `throw fail.X()`, mutable state draft committed only on success, typed `emit` / `self.after(ms)` / `actors()`.
-- **Level 1** — opt into declared schemas for wire validation and a standalone client contract.
-- **Level 2** — declare resources/services (Effect's dependency channel), typed in the handler context, swappable in tests. Still no Effect syntax.
-- **Level 3** — drop down to raw `Effect` / `@rivetkit/effect`. Every level is real Effect underneath, so climbing never means rewriting.
+Four levels; you meet the layer where you are, and each one is real Effect underneath — so climbing never means rewriting.
+
+- **Level 0, your everyday code** — what you see above: plain async handlers, payload types on the signature, `throw fail.X()`, mutable state draft committed only on success, typed `emit` / `self.after(ms)` / `actors()`.
+- **Level 1, the contract** — opt into declared schemas for wire validation and a standalone client contract.
+- **Level 2, the wiring** — declare resources/services (Effect's dependency channel), typed in the handler context, swappable in tests. Still no Effect syntax.
+- **Level 3, the engine room** — drop down to raw `Effect` / `@rivetkit/effect`, full power, a supported move.
+
+The design bar the whole repo is measured against — seven named requirements, from "matches the actor mental model" to "IDE and agent legibility" — lives in [`docs/requirements.md`](docs/requirements.md).
 
 ## Observability: the crew
 
