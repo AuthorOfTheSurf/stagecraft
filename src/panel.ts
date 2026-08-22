@@ -211,6 +211,21 @@ const PAGE = `<!doctype html>
   }
 
   const es = new EventSource("/events");
+  // On reconnect the server replays its full backlog (it may even be a new
+  // process — a restarted demo behind a kept-open tab). The feed counts by
+  // incrementing, so replayed reports would re-fold on top of the old
+  // counts; wipe everything and let the replay rebuild the true picture.
+  let connectedOnce = false;
+  es.onopen = () => {
+    if (!connectedOnce) { connectedOnce = true; return; }
+    actors.clear();
+    issueRows.clear();
+    issuesBody.replaceChildren();
+    reportGroups.clear();
+    reportsEl.replaceChildren();
+    document.getElementById("empty").style.display = "";
+    renderActors();
+  };
   es.addEventListener("activity", (e) => { const ev = JSON.parse(e.data); actors.set(ev.actor, ev); renderActors(); });
   es.addEventListener("issue", (e) => upsertIssue(JSON.parse(e.data)));
   es.addEventListener("report", (e) => addReport(JSON.parse(e.data)));
