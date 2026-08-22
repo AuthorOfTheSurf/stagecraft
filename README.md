@@ -33,7 +33,7 @@ Four levels; you meet the layer where you are, and each one is real Effect under
 - **Level 2, the wiring** — declare resources/services (Effect's dependency channel), typed in the handler context, swappable in tests. Still no Effect syntax.
 - **Level 3, the engine room** — drop down to raw `Effect` / `@rivetkit/effect`, full power, a supported move.
 
-The design bar the whole repo is measured against — seven named requirements, from "matches the actor mental model" to "IDE and agent legibility" — lives in [`docs/requirements.md`](docs/requirements.md).
+The design bar the whole repo is measured against — seven named requirements, from "matches the actor mental model" to "IDE and agent legibility" — lives in [`docs/requirements.md`](docs/requirements.md). And credit where due: much of what makes this layer thin is that the substrate is good — [`docs/upstream-strengths.md`](docs/upstream-strengths.md) records what `@rivetkit/effect` does well, and the functionality floor stagecraft must never regress below.
 
 ## Observability: the crew
 
