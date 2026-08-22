@@ -39,12 +39,13 @@ Expected: `ok` on stdout and the message appears in your channel.
 cd ~/Repos/stagecraft
 bun install
 cp .env.example .env.local   # gitignored; paste your webhook URL(s) in
-bun run demo
+bun run demo --slack
 ```
 
 Checklist:
 
-- [ ] Startup does **not** print `(set SLACK_WEBHOOK_URL to also alert to Slack)` — meaning the adapter attached.
+- [ ] Startup prints `Slack alerts on` — the adapter attached.
+- [ ] Two-key negative cases: `bun run demo --slack` with the env var unset or garbled dies at boot (exit 1) with a message naming the flag and the var — and never echoing the URL value; `bun run demo` without the flag ignores the env var entirely.
 - [ ] Within a few rounds, a **🆕 New issue** message lands in the channel: header block, `Referee.Play` context line, then `payload` / `state` / `stack` code sections.
 - [ ] Around round 7, a **second, different issue** arrives (the lowercase `WinRate` call). Recurrences of either issue must **not** post — watch the panel counts climb at `http://localhost:4949` while Slack stays quiet.
 - [ ] In the panel, click **Resolve** on the draw issue, wait a few rounds: a **🔥 REGRESSION** message arrives.

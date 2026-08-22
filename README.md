@@ -60,7 +60,16 @@ bun install
 bun run demo          # boots a real engine, opens http://localhost:4949
 ```
 
-A referee actor scores rock-paper-scissors rounds and carries a realistic bug: the developer handled both winners and forgot that `winnerOf` can return `"draw"`. Watch the issue appear, click **Resolve**, and wait a few rounds for the 🔥 regression. `DISCORD_WEBHOOK_URL=…` adds Discord alerts; `SLACK_WEBHOOK_URL=…` adds Slack alerts (setup from zero, Slack account included: [`docs/qa/slack-adapter.md`](docs/qa/slack-adapter.md)); `DEMO_TICK_MS=8000` slows the pace.
+A referee actor scores rock-paper-scissors rounds and carries a realistic bug: the developer handled both winners and forgot that `winnerOf` can return `"draw"`. Watch the issue appear, click **Resolve**, and wait a few rounds for the 🔥 regression. With no flags you get the panel and stdout alerts — a basic error monitor with zero external dependencies.
+
+External alerting is two-key — a flag for intent, an env var for the credential, both required:
+
+```sh
+bun run demo --discord    # requires DISCORD_WEBHOOK_URL
+bun run demo --slack      # requires SLACK_WEBHOOK_URL (from-zero setup: docs/qa/slack-adapter.md)
+```
+
+A flag whose env var is missing or garbled kills the demo at boot rather than running with a silently dead channel. `DEMO_TICK_MS=8000` slows the pace.
 
 ```sh
 bun test              # the full suite, against a real local engine
