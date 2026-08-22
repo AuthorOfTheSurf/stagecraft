@@ -33,6 +33,8 @@ curl -X POST -H 'Content-type: application/json' \
 
 Expected: `ok` on stdout and the message appears in your channel.
 
+Or skip curl and use the built-in connectivity check once the repo is installed (Part 3's `.env.local` in place): `bun run hello --slack` posts a friendly greeting; add `--example-error` to see the exact shape a real error report takes.
+
 ## Part 3 — Test through the demo
 
 ```sh

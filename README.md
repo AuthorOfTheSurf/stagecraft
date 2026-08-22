@@ -71,6 +71,13 @@ bun run demo --slack      # requires SLACK_WEBHOOK_URL (from-zero setup: docs/qa
 
 A flag whose env var is missing or garbled kills the demo at boot rather than running with a silently dead channel. `DEMO_TICK_MS=8000` slows the pace.
 
+To verify a channel is wired without running the demo at all:
+
+```sh
+bun run hello --slack               # posts "hello, world!" to the channel
+bun run hello --slack --example-error   # posts a realistically-shaped (clearly fake) error report
+```
+
 ```sh
 bun test              # the full suite, against a real local engine
 ```
@@ -86,6 +93,7 @@ bun test              # the full suite, against a real local engine
 | [`src/adapters.ts`](src/adapters.ts) | Composable sinks: per-report `watch(...)` and issue-level `alertWith(...)` — stdout, Discord, Slack |
 | [`src/panel.ts`](src/panel.ts) | The live panel: actors + QUIET watchdog, issues + Resolve, failure feed (SSE, zero deps) |
 | [`src/demo-panel.ts`](src/demo-panel.ts) | The runnable demo |
+| [`src/hello.ts`](src/hello.ts) | Webhook connectivity check: `bun run hello --slack/--discord [--example-error]` |
 | [`src/engine-hygiene.ts`](src/engine-hygiene.ts) | Reaps orphaned `rivet-engine` processes that would poison the next run |
 | [`docs/posts/`](docs/posts/) | The story, told as posts: the intro and "The Forgotten Draw" |
 | [`docs/design-notes.md`](docs/design-notes.md) | Design requirements, the ladder, and known v0 hazards |

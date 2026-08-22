@@ -52,7 +52,7 @@ export const stdout = (): MonitorAdapter => (r) => {
  * fetch failure. Vendor-neutral on purpose — any absolute http(s) URL
  * passes; we don't presume what a vendor's webhook paths look like.
  */
-const requireWebhookUrl = (adapter: string, url: string | undefined): string => {
+export const requireWebhookUrl = (adapter: string, url: string | undefined): string => {
   if (!url) {
     throw new Error(
       `${adapter}: webhookUrl is missing or empty — is the env var it comes from actually set?`,

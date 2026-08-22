@@ -15,6 +15,7 @@
   "scripts": {
     "test": "bun test",
     "demo": "bun src/demo-panel.ts",
+    "hello": "bun src/hello.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
