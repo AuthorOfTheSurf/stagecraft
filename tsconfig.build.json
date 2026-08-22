@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    // Emit needs .ts imports rewritten to .js (allowImportingTsExtensions
+    // alone only works with noEmit).
+    "rewriteRelativeImportExtensions": true
+  },
+  // Only the public surface and what it pulls in — tests, demos, and the
+  // hello/demo scripts stay source-only.
+  "include": [],
+  "files": ["src/index.ts"]
+}

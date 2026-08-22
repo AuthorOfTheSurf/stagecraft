@@ -10,13 +10,24 @@
   },
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "bun": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
   },
+  "files": [
+    "dist",
+    "src",
+    "!src/*.test.ts"
+  ],
   "scripts": {
     "test": "bun test",
     "demo": "bun src/demo-panel.ts",
     "hello": "bun src/hello.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "prepublishOnly": "bun run typecheck && bun test && bun run build"
   },
   "dependencies": {
     "@rivetkit/effect": "2.3.10",
