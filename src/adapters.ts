@@ -62,7 +62,9 @@ const requireWebhookUrl = (adapter: string, url: string | undefined): string => 
   try {
     parsed = new URL(url);
   } catch {
-    throw new Error(`${adapter}: webhookUrl is not a valid absolute URL (got ${JSON.stringify(url)})`);
+    // Never echo the value: a webhook URL is a credential, and the most
+    // common garble (a paste that lost its scheme) is still mostly secret.
+    throw new Error(`${adapter}: webhookUrl doesn't look like a URL (value withheld — it may be a secret)`);
   }
   if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
     throw new Error(`${adapter}: webhookUrl must be http(s), got ${parsed.protocol}//…`);

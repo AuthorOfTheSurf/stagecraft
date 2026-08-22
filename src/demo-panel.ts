@@ -6,7 +6,7 @@
  *   bun src/actors/proposed-simple-sdk/demo-panel.ts
  *   DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/… bun src/actors/proposed-simple-sdk/demo-panel.ts
  */
-import { alertWith, discordAlert, slackAlert, stdoutAlert } from "./adapters.ts";
+import { alertWith, discordAlert, slackAlert, stdoutAlert, type IssueAlertAdapter } from "./adapters.ts";
 import { ChatRoom, Moderator } from "./chat.ts";
 import { reapOrphanEngines } from "./engine-hygiene.ts";
 import { issueTracker } from "./issues.ts";
@@ -20,16 +20,34 @@ import { startPanel } from "./panel.ts";
 // count. Resolve an issue in the panel, wait for it to recur, and watch
 // the regression come through loud.
 const tracker = issueTracker();
-const discordUrl = process.env["DISCORD_WEBHOOK_URL"];
-const slackUrl = process.env["SLACK_WEBHOOK_URL"];
+
+// Webhook channels are opted into by defining the env var. Undefined means
+// off; a var that's defined but empty or garbled is a misconfiguration and
+// kills the demo at boot — better than running like nothing is wrong while
+// an alert channel is silently dead. (Runtime sink failures stay isolated;
+// only *wiring* fails hard.)
+function fromEnv(channel: string, envVar: string, make: (opts: { webhookUrl: string | undefined }) => IssueAlertAdapter): IssueAlertAdapter[] {
+  const url = process.env[envVar];
+  if (url === undefined) {
+    console.log(`${channel} alerts off — ${envVar} is not set`);
+    return [];
+  }
+  try {
+    const adapter = make({ webhookUrl: url });
+    console.log(`${channel} alerts on`);
+    return [adapter];
+  } catch (e) {
+    console.error(`${envVar} is set but unusable: ${e instanceof Error ? e.message : e}`);
+    process.exit(1);
+  }
+}
+
 alertWith(
   tracker,
   stdoutAlert(),
-  ...(discordUrl ? [discordAlert({ webhookUrl: discordUrl })] : []),
-  ...(slackUrl ? [slackAlert({ webhookUrl: slackUrl })] : []),
+  ...fromEnv("Discord", "DISCORD_WEBHOOK_URL", discordAlert),
+  ...fromEnv("Slack", "SLACK_WEBHOOK_URL", slackAlert),
 );
-if (!discordUrl) console.log("(set DISCORD_WEBHOOK_URL to also alert to Discord)");
-if (!slackUrl) console.log("(set SLACK_WEBHOOK_URL to also alert to Slack)");
 
 const panel = startPanel({ tracker });
 console.log(`monitor panel: ${panel.url}`);

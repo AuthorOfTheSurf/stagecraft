@@ -83,8 +83,12 @@ test("webhook adapters fail fast at construction on a missing or garbled URL", (
   for (const make of [slack, discord, slackAlert, discordAlert]) {
     expect(() => make({ webhookUrl: undefined })).toThrow(/missing or empty/);
     expect(() => make({ webhookUrl: "" })).toThrow(/missing or empty/);
-    // a paste that lost its scheme (the classic terminal line-wrap casualty)
-    expect(() => make({ webhookUrl: "hooks.slack.com/services/T000/B000/x" })).toThrow(/not a valid absolute URL/);
+    // a paste that lost its scheme (the classic terminal line-wrap casualty) —
+    // and the message must never echo the value (it's a credential)
+    let msg = "";
+    try { make({ webhookUrl: "hooks.slack.com/services/T000/B000/SECRETPART" }); } catch (e) { msg = String(e); }
+    expect(msg).toContain("doesn't look like a URL");
+    expect(msg).not.toContain("SECRETPART");
     expect(() => make({ webhookUrl: "ftp://hooks.slack.com/x" })).toThrow(/http/);
     expect(() => make({ webhookUrl: "https://example.com/anything" })).not.toThrow(); // vendor-neutral: any http(s) URL constructs
   }
