@@ -1,5 +1,9 @@
 # stagecraft
 
+[![CI](https://github.com/AuthorOfTheSurf/stagecraft/actions/workflows/ci.yml/badge.svg)](https://github.com/AuthorOfTheSurf/stagecraft/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@authorofthesurf/stagecraft)](https://www.npmjs.com/package/@authorofthesurf/stagecraft)
+[![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 > The developer-first actor framework & observability suite for [Rivet](https://rivet.dev).
 
 **stagecraft** is an ergonomic layer over [`@rivetkit/effect`](https://www.npmjs.com/package/@rivetkit/effect): you write actors as plain async handlers and get durable state, one-message-at-a-time FIFO semantics, typed errors, durable scheduling, and events — without learning the underlying [Effect](https://effect.website/docs/getting-started/the-effect-type/) generic machinery (`Effect<Success, Error, Requirements>`, representing your computation's *return type*, *error types*, and *context resources*) first. 

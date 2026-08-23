@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same branch makes the in-flight run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      # Boots a real rivet-engine child process, so this is also the
+      # smoke test that the engine binary runs on a Linux runner.
+      - name: Test
+        run: bun test
+
+      - name: Build
+        run: bun run build
+
+      # The two rules that keep Bun-only code out of a consumer's bundle.
+      # Cheap to check, and silent rot otherwise.
+      - name: Guard backstage boundary
+        run: |
+          if grep -rn 'Bun\.\|process\.' src --include='*.ts' \
+               --exclude-dir=tools --exclude='*.test.ts'; then
+            echo "::error::Bun-only API outside src/tools/ — it would break Node and Worker consumers"
+            exit 1
+          fi
+          if grep -n 'tools/' src/index.ts; then
+            echo "::error::src/index.ts imports from tools/ — the root export must stay portable"
+            exit 1
+          fi
+          if grep -q 'tools/' dist/index.js; then
+            echo "::error::dist/index.js reaches into tools/"
+            exit 1
+          fi
+          echo "backstage boundary intact"
