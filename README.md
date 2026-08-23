@@ -179,6 +179,7 @@ bun test              # the full suite, against a real local engine
 | [`src/demo-panel.ts`](src/demo-panel.ts) | The runnable demo |
 | [`src/hello.ts`](src/hello.ts) | Webhook connectivity check: `bun run hello --slack/--discord [--example-error]` |
 | [`src/engine-hygiene.ts`](src/engine-hygiene.ts) | Reaps orphaned `rivet-engine` processes that would poison the next run |
+| [`AGENTS.md`](AGENTS.md) | AI coding agent reference: rules of the stage, error contracts, and self-deadlock prevention |
 | [`docs/qa/`](docs/qa/) | From-zero setup and manual QA runbooks for Discord and Slack webhook adapters |
 | [`docs/posts/`](docs/posts/) | The story, told as posts: the intro and "The Forgotten Draw" |
 | [`docs/design-notes.md`](docs/design-notes.md) | Design requirements, the ladder, and known v0 hazards |
