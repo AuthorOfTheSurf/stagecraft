@@ -31,7 +31,7 @@ export const ChatRoom = actor("ChatRoom", {
     newMessage: {} as ChatMessage,
   },
   errors: {
-    MemberNotInRoom: {} as { name: string },
+    MemberNotInRoom: {} as { member: string },
   },
   handle: {
     Initialize: async ({ name }: { name: string }, { state }) => {
@@ -48,7 +48,7 @@ export const ChatRoom = actor("ChatRoom", {
 
     Leave: async ({ name }: { name: string }, { state, emit, fail }) => {
       if (!state.members.some((m) => m.name === name))
-        throw fail.MemberNotInRoom({ name });
+        throw fail.MemberNotInRoom({ member: name });
       state.members = state.members.filter((m) => m.name !== name);
       emit.memberLeft({ name });
     },
@@ -59,7 +59,7 @@ export const ChatRoom = actor("ChatRoom", {
     ) => {
       const isAdmin = m.sender === "Admin";
       if (!isAdmin && !state.members.some((x) => x.name === m.sender))
-        throw fail.MemberNotInRoom({ name: m.sender });
+        throw fail.MemberNotInRoom({ member: m.sender });
       await actors(Moderator).getOrCreate("main").Review({ text: m.text });
       const message = { sender: m.sender, text: m.text, at: Date.now() };
       state.messages.push(message);

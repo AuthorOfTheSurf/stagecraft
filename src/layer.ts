@@ -74,6 +74,16 @@ const errorUnion = () =>
     ? Schema.Union([...errorClasses.values()])
     : undefined;
 
+// Declared-error data is flattened onto an Error instance (see `flatten`),
+// so these field names would silently clobber built-in Error props.
+const RESERVED_ERROR_FIELDS = new Set([
+  "name",
+  "message",
+  "stack",
+  "cause",
+  "_tag",
+]);
+
 const isDeclaredError = (e: unknown): e is { _tag: string; data: any } =>
   typeof e === "object" && e !== null && "_tag" in e &&
   errorClasses.has((e as any)._tag);
@@ -185,6 +195,16 @@ export function actor<
     get: (_, tag: string) => (fields: any) => {
       const Cls = errorClasses.get(tag);
       if (!Cls) throw new Error(`undeclared error: ${tag}`);
+      for (const key of Object.keys(fields ?? {})) {
+        if (RESERVED_ERROR_FIELDS.has(key)) {
+          throw new Error(
+            `declared error ${tag} uses reserved field "${key}" — ` +
+              `error data is flattened onto an Error instance, so ` +
+              `${[...RESERVED_ERROR_FIELDS].join("/")} would collide with ` +
+              `built-in props. Rename the field.`,
+          );
+        }
+      }
       return new Cls({ data: fields ?? {} });
     },
   });

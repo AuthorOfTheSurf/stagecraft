@@ -6,11 +6,23 @@
  */
 import { ChatRoom, Moderator } from "../examples/chat.ts";
 import { Referee } from "../examples/monitor-demo.ts";
-import { testEngine } from "../src/index.ts";
+import { actor, testEngine } from "../src/index.ts";
 import { reapOrphanEngines } from "../src/tools/testing.ts";
 
+// Test-only actor: throws a declared error whose data uses a reserved
+// Error prop name, to prove the fail() guard refuses it loudly.
+export const ReservedFieldDemo = actor("reserved-field-demo", {
+  state: {},
+  errors: { Oops: {} as { message: string } },
+  handle: {
+    Trip: async (_: undefined, { fail }) => {
+      throw fail.Oops({ message: "boom" });
+    },
+  },
+});
+
 reapOrphanEngines(); // a stranded engine from a prior run poisons this one
-export const engine = testEngine(ChatRoom, Moderator, Referee);
+export const engine = testEngine(ChatRoom, Moderator, Referee, ReservedFieldDemo);
 
 // bun loads test files one at a time, so a per-suite refcount would hit
 // zero between files. Dispose exactly once, when the whole process ends.

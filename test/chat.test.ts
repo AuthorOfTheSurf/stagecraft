@@ -6,7 +6,9 @@
  */
 import { afterAll, expect, test } from "bun:test";
 import { ChatRoom, Moderator } from "../examples/chat.ts";
+import { isUnexpected } from "../src/index.ts";
 import { engine, release, retain } from "./test-harness.ts";
+import { ReservedFieldDemo } from "./test-harness.ts";
 
 retain();
 afterAll(() => release());
@@ -50,7 +52,7 @@ test(
       throw new Error("should have thrown");
     } catch (e) {
       if (!ChatRoom.is.MemberNotInRoom(e)) throw e;
-      expect(e.name).toBe("Mallory");
+      expect(e.member).toBe("Mallory");
     }
 
     try {
@@ -81,6 +83,23 @@ test(
 
     const { memberCount } = await room.Join({ name: "Cara" });
     expect(memberCount).toBe(2);
+  },
+  TIMEOUT,
+);
+
+test(
+  "a declared error whose data uses a reserved Error prop is refused loudly",
+  async () => {
+    const demo = engine.client(ReservedFieldDemo).getOrCreate(fresh("reserved"));
+    try {
+      await demo.Trip(undefined);
+      throw new Error("should have thrown");
+    } catch (e) {
+      // The guard's refusal is an undeclared error, so it surfaces on the
+      // unexpected channel with the reserved-field explanation intact.
+      if (!isUnexpected(e)) throw e;
+      expect(e.message).toContain('reserved field "message"');
+    }
   },
   TIMEOUT,
 );
