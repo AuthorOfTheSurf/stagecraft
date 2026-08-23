@@ -9,6 +9,7 @@ import type { UnexpectedReport } from "./layer.ts";
 const report = (over: Partial<UnexpectedReport> = {}): UnexpectedReport => ({
   reportId: crypto.randomUUID(),
   actor: "Referee",
+  key: "match-1",
   action: "Play",
   payload: { alice: "rock", bob: "rock" },
   state: {},

@@ -27,7 +27,7 @@ export function startPanel({ port = 4949, quietAfterMs = 30_000, tracker }: { po
   };
 
   const stopActivity = onActivity((ev) => {
-    lastActivity.set(ev.actor, ev);
+    lastActivity.set(`${ev.actor}\u0000${ev.key}`, ev);
     push("activity", ev);
   });
   const stopReports = onUnexpected((r) => {
@@ -111,7 +111,7 @@ const PAGE = `<!doctype html>
   details.group .report { margin: .3rem 0 .3rem 1rem; }
 </style>
 <h1>Actors</h1>
-<table><thead><tr><th>actor</th><th>last action</th><th>outcome</th><th>latency</th><th>last seen</th></tr></thead>
+<table><thead><tr><th>actor</th><th>instance</th><th>last action</th><th>outcome</th><th>latency</th><th>last seen</th></tr></thead>
 <tbody id="actors"></tbody></table>
 <div id="issues-section" style="display:none">
 <h1>Issues</h1>
@@ -134,12 +134,13 @@ const PAGE = `<!doctype html>
 
   function renderActors() {
     tbody.innerHTML = "";
-    for (const [name, ev] of [...actors].sort((a, b) => a[0] < b[0] ? -1 : 1)) {
+    for (const [, ev] of [...actors].sort((a, b) => a[0] < b[0] ? -1 : 1)) {
       const age = Date.now() - ev.at;
       const quiet = age > QUIET_MS;
       const row = document.createElement("tr");
       row.innerHTML =
-        "<td>" + name + (quiet ? " <span class=quiet>● QUIET</span>" : " <span class=ok>●</span>") + "</td>" +
+        "<td>" + ev.actor + (quiet ? " <span class=quiet>● QUIET</span>" : " <span class=ok>●</span>") + "</td>" +
+        "<td>" + (ev.key || "\u2014") + "</td>" +
         "<td>" + ev.action + "</td>" +
         "<td class=" + ev.outcome + ">" + ev.outcome + "</td>" +
         "<td>" + ev.ms + "ms</td>" +
@@ -187,7 +188,7 @@ const PAGE = `<!doctype html>
     block.className = "report";
     block.textContent =
       "UNEXPECTED ERROR " + r.reportId + "\\n" +
-      "actor:   " + r.actor + " · action: " + r.action + " · at: " + new Date(r.at).toISOString() + "\\n" +
+      "actor:   " + r.actor + (r.key ? "[" + r.key + "]" : "") + " · action: " + r.action + " · at: " + new Date(r.at).toISOString() + "\\n" +
       "error:   " + r.error.name + ": " + r.error.message + "\\n" +
       "payload: " + JSON.stringify(r.payload) + "\\n" +
       "state:   " + JSON.stringify(r.state) + "\\n" +
@@ -226,7 +227,7 @@ const PAGE = `<!doctype html>
     document.getElementById("empty").style.display = "";
     renderActors();
   };
-  es.addEventListener("activity", (e) => { const ev = JSON.parse(e.data); actors.set(ev.actor, ev); renderActors(); });
+  es.addEventListener("activity", (e) => { const ev = JSON.parse(e.data); actors.set(ev.actor + "\u0000" + (ev.key || ""), ev); renderActors(); });
   es.addEventListener("issue", (e) => upsertIssue(JSON.parse(e.data)));
   es.addEventListener("report", (e) => addReport(JSON.parse(e.data)));
   setInterval(renderActors, 1000); // keep ages + quiet flags ticking

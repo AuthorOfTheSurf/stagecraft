@@ -10,6 +10,7 @@ import type { UnexpectedReport } from "./layer.ts";
 const report: UnexpectedReport = {
   reportId: "00000000-0000-0000-0000-000000000000",
   actor: "Referee",
+  key: "match-1",
   action: "Play",
   payload: { alice: "rock", bob: "rock" },
   state: { scores: { Alice: { wins: 1 }, Bob: { wins: 0 } } },
