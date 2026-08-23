@@ -15,7 +15,7 @@ export type MonitorAdapter = (r: UnexpectedReport) => void | Promise<void>;
 export function format(r: UnexpectedReport): string {
   return [
     `UNEXPECTED ERROR ${r.reportId}`,
-    `actor:   ${r.actor} · action: ${r.action} · at: ${new Date(r.at).toISOString()}`,
+    `actor:   ${r.actor}${r.key ? `[${r.key}]` : ""} · action: ${r.action} · at: ${new Date(r.at).toISOString()}`,
     `error:   ${r.error.name}: ${r.error.message}`,
     `payload: ${JSON.stringify(r.payload)}`,
     `state:   ${JSON.stringify(r.state)}`,

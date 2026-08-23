@@ -105,6 +105,8 @@ const flatten = (e: { _tag: string; data: any }) =>
 export type UnexpectedReport = {
   reportId: string;
   actor: string;
+  /** Instance key (multi-part keys joined with "/"); "" for keyless actors. */
+  key: string;
   action: string;
   payload: unknown;
   /** Committed state at the moment the handler ran (draft changes excluded). */
@@ -126,6 +128,8 @@ export function onUnexpected(fn: (r: UnexpectedReport) => void): () => void {
 // these — silent actors become visible by the *absence* of events.
 export type ActivityEvent = {
   actor: string;
+  /** Instance key (multi-part keys joined with "/"); "" for keyless actors. */
+  key: string;
   action: string;
   outcome: "ok" | "declared-error" | "unexpected-error";
   ms: number;
@@ -211,6 +215,9 @@ export function actor<
 
   const live = contract.toLayer(
     Effect.fnUntraced(function* ({ rawRivetkitContext, state }: any) {
+      // Which instance this is — a fleet of same-named actors is the normal
+      // case, and every monitor channel event must say WHICH one spoke.
+      const instanceKey: string = (rawRivetkitContext.key ?? []).join("/");
       // The SDK runs actions concurrently; level 0 promises the actor-model
       // semantic instead — one handler at a time per instance — which is
       // also what makes the read-clone-commit state draft safe.
@@ -260,7 +267,7 @@ export function actor<
             try: () => serialize(async () => {
               const t0 = Date.now();
               const activity = (outcome: ActivityEvent["outcome"]) =>
-                notifyActivity({ actor: name, action: tag, outcome, ms: Date.now() - t0, at: Date.now() });
+                notifyActivity({ actor: name, key: instanceKey, action: tag, outcome, ms: Date.now() - t0, at: Date.now() });
               const current = await run(state.get.pipe(Effect.orDie));
               const draft = JSON.parse(JSON.stringify(current ?? {})) as S;
               let result: unknown;
@@ -275,6 +282,7 @@ export function actor<
                 const report: UnexpectedReport = {
                   reportId: crypto.randomUUID(),
                   actor: name,
+                  key: instanceKey,
                   action: tag,
                   payload: payload?.data,
                   state: current,

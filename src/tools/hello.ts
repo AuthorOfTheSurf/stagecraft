@@ -76,6 +76,7 @@ const exampleError = args.includes("--example-error");
 const exampleReport: UnexpectedReport = {
   reportId: crypto.randomUUID(),
   actor: "ExampleActor",
+  key: "example-1",
   action: "ExampleAction",
   payload: { example: true },
   state: { rounds: 3, scores: { Alice: 2, Bob: 1 } },

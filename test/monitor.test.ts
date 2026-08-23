@@ -18,7 +18,8 @@ test(
   "the forgotten draw: typed error, rich report, actor survives",
   async () => {
     const m = monitor();
-    const referee = engine.client(Referee).getOrCreate(fresh("referee"));
+    const key = fresh("referee");
+    const referee = engine.client(Referee).getOrCreate(key);
 
     const round1 = await referee.Play({ alice: "rock", bob: "scissors" });
     expect(round1.winner).toBe("Alice");
@@ -38,6 +39,7 @@ test(
     expect(r.payload).toEqual({ alice: "rock", bob: "rock" });
     expect(r.state).toEqual({ scores: { Alice: { wins: 1 }, Bob: { wins: 0 } } });
     expect(r.error.message).toContain("undefined");
+    expect(r.key).toBe(key); // the report names WHICH instance (fleet case)
     expect(format(r)).toContain("Referee");
 
     // The actor survived, and the failed handler committed nothing.
