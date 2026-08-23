@@ -166,6 +166,26 @@ export const isUnexpected = (
 } =>
   typeof e === "object" && e !== null && (e as any)._tag === UNEXPECTED;
 
+/**
+ * Production knobs for one actor. `@rivetkit/effect` forwards only `name` and
+ * `icon` to rivetkit today, so anything else set through its own option bag is
+ * silently dropped — which is how an actor that awaits an LLM ends up killed by
+ * the 60s default `actionTimeout` with no way to say otherwise. We apply these
+ * to the underlying rivetkit actor ourselves, after its layer is built and
+ * before the registry starts. See stagecraft#19; this goes away if upstream
+ * widens its passthrough.
+ */
+export type RuntimeOptions = {
+  /** Max wall-clock ms for ONE action, including everything it awaits. Default 60_000. */
+  actionTimeout?: number;
+  /** Keep the instance awake instead of sleeping when idle. Default false. */
+  noSleep?: number | boolean;
+  /** Idle ms before the instance sleeps. Default 30_000. */
+  sleepTimeout?: number;
+  /** Max bytes for one inbound action payload. Default 65_536. */
+  maxQueueMessageSize?: number;
+} & Record<string, unknown>;
+
 export function actor<
   S extends object,
   Ev extends Record<string, any>,
@@ -173,7 +193,7 @@ export function actor<
   H extends Record<string, (payload: any, ctx: Ctx<S, Ev, Er>) => any>,
 >(
   name: string,
-  config: { state: S; events?: Ev; errors?: Er; handle: H },
+  config: { state: S; events?: Ev; errors?: Er; handle: H; options?: RuntimeOptions },
 ): ActorDef<S, Ev, Er, H> {
   for (const tag of Object.keys(config.errors ?? {})) {
     if (!errorClasses.has(tag)) {
@@ -213,7 +233,7 @@ export function actor<
     },
   });
 
-  const live = contract.toLayer(
+  const built = contract.toLayer(
     Effect.fnUntraced(function* ({ rawRivetkitContext, state }: any) {
       // Which instance this is — a fleet of same-named actors is the normal
       // case, and every monitor channel event must say WHICH one spoke.
@@ -325,6 +345,30 @@ export function actor<
       name,
     } as any,
   );
+
+  // Apply the runtime knobs by hand (see RuntimeOptions). `toLayer` registers
+  // the built rivetkit actor on the Registry; we reach for it there and write
+  // the options onto its parsed config. This runs after the actor's own layer
+  // is built and before `Registry.test`/`serve` reads the config to start, so
+  // the values are in place by the time they matter.
+  const live = config.options
+    ? Layer.effectDiscard(
+        Effect.gen(function* () {
+          const registry = yield* Registry.Registry;
+          const built = (registry as any).rivetkitActors?.get(name);
+          if (!built?.config?.options) {
+            // Upstream moved the shape out from under us. Say so loudly rather
+            // than run a fleet under limits nobody asked for.
+            throw new Error(
+              `actor ${name}: cannot apply options — @rivetkit/effect no longer ` +
+                `exposes the built rivetkit actor's config. Remove the options, ` +
+                `or update stagecraft.`,
+            );
+          }
+          Object.assign(built.config.options, config.options);
+        }),
+      ).pipe(Layer.provideMerge(built))
+    : built;
 
   const is = new Proxy({} as Guards<Er>, {
     get: (_, tag: string) => (e: unknown) =>

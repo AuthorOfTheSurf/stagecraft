@@ -24,6 +24,7 @@ export {
   type AnyActorDef,
   type UnexpectedReport,
   type ActivityEvent,
+  type RuntimeOptions,
 } from "./layer.ts";
 
 export {
