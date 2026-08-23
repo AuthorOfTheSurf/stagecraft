@@ -97,6 +97,8 @@ The shape is the point: define an actor, give it durable state, and describe its
 
 Rivet's original launch-post chat room is 551 lines across 8 files in the raw Effect idiom. The same application is about 90 lines in one file ([`examples/chat.ts`](examples/chat.ts)) with zero Effect syntax in user code. Same engine, same wire format, same durability.
 
+More exhibits live in [`examples/`](examples/): a durable AI agent session with human-in-the-loop approval, a realtime batch importer with a crash-safe cursor, and a per-subscriber drip campaign on durable timers — each backed by integration tests against a real engine.
+
 ---
 
 ## Comprehensive Feature Matrix
@@ -255,6 +257,9 @@ bun test              # the full suite, against a real local engine
 | File | What it is |
 |---|---|
 | [`examples/chat.ts`](examples/chat.ts) | The chat-room exhibit — the launch-post app at level 0 |
+| [`examples/support-agent.ts`](examples/support-agent.ts) | A durable AI agent session with human-in-the-loop approval |
+| [`examples/csv-importer.ts`](examples/csv-importer.ts) | A realtime batch importer: durable cursor, live progress events |
+| [`examples/drip-campaign.ts`](examples/drip-campaign.ts) | A per-subscriber drip sequence on durable timers |
 | [`examples/monitor-demo.ts`](examples/monitor-demo.ts) | The Referee with the forgotten-draw bug |
 | [`examples/demo-panel.ts`](examples/demo-panel.ts) | The runnable demo: `bun run demo` |
 | [`test/`](test/) | Integration tests, borrowing the examples as fixtures |
