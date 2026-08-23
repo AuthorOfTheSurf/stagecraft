@@ -1,6 +1,6 @@
-# The proposed simple SDK
+# The simple SDK, and the design behind it
 
-A working v0 of the ergonomic layer we believe should sit on top of `@rivetkit/effect`. Deliberately **not** named "effect" — this is a layer (or two) above it: Effect is the implementation substrate, not the user's problem. Every exported name here is a **placeholder**; Rivet names things.
+This document records the design behind the ergonomic layer that became the public `stagecraft` package. Deliberately **not** named "effect" — this is a layer (or two) above it: Effect is the implementation substrate, not the user's problem. The API began as a placeholder and is still evolving; where this document and the code differ, the runnable code and tests are the source of truth.
 
 ## Why this exists
 
@@ -27,13 +27,13 @@ The design requirements, in one breath: match the actor mental model (messages, 
 | [`demo-panel.ts`](../examples/demo-panel.ts) | Run it: boots an engine, opens the panel, plays RPS until the draw hits |
 | [`test-harness.ts`](../test/test-harness.ts) | One engine + one registry per process (two `Registry.test` instances clobber each other) |
 | [`posts/`](./posts/) | The story, told as posts: the rewritten intro and Part 2 |
-| The raw-idiom baseline (the same patterns written directly against `@rivetkit/effect`) lives alongside the original exhibit; the side-by-side is told in [`posts/01-introducing.md`](./posts/01-introducing.md). ||
+| The raw-idiom baseline (the same patterns written directly against `@rivetkit/effect`) lives alongside the original exhibit; the side-by-side is told in [`posts/01-introducing.md`](./posts/01-introducing.md). |
 
 ## Design concerns we're carrying
 
 - **State is the durable store.** Every actor already persists a JSON state document across sleep/restart. SQLite is an opt-in graft for relational or large data (`db` handle appears only in handlers that want it), not the default persistence story.
 - **Errors**: declared errors cross the wire typed and are guarded client-side (`Room.is.MemberNotInRoom(e)`); a `try` variant returning a union is the opt-in for exhaustive handling. Undeclared errors go to the **unexpected-error channel** — see Part 2.
 - **Serialization**: the raw SDK runs an actor's actions concurrently; this layer serializes handlers per instance because one-message-at-a-time *is* the actor model. Corollary to document: a handler that calls its own actor deadlocks.
-- **Known v0 hazards** (tracked in the design doc): error flattening onto `Error` collides with reserved props (`name`); the action-time Effect context — not the wake context — is what makes promise-land actor-to-actor calls work; `Client.layer()` must be provided into actor lives.
+- **Historical v0 hazards** (tracked in the design doc): error flattening onto `Error` once collided with reserved props (`name`); the action-time Effect context — not the wake context — is what makes promise-land actor-to-actor calls work; `Client.layer()` must be provided into actor lives. The reserved-field collision is now rejected explicitly.
 
-The full design doc (requirements, honesty map of ships-today vs. pending vs. proposal, build log) lives in the private wiki; a shareable RFC gets extracted from it later.
+The public design bar lives in [`requirements.md`](./requirements.md). The private wiki keeps the complete reasoning and build log; this directory keeps the parts that are useful to someone reading or using the repository.

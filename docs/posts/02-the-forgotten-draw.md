@@ -2,6 +2,8 @@
 
 *Nobody can enumerate everything that can go wrong up front. The system should assume you missed one.*
 
+*This post continues the original design sketch. The runnable version is [`examples/monitor-demo.ts`](../../examples/monitor-demo.ts), and the current package API is documented in [`README.md`](../../README.md).*
+
 ---
 
 Here's a referee for rock-paper-scissors. It has a bug you might not spot in review:

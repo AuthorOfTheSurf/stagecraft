@@ -1,6 +1,6 @@
-# Introducing the SDK (the rewrite)
+# Introducing the SDK (the original rewrite)
 
-*Rivet's Effect SDK launch post, rewritten the way we'd want to read it. Their version introduces the chat room in 551 lines across 8 files; here it is whole. Every API name is a placeholder.*
+*Rivet's Effect SDK launch post, rewritten as a design sketch for the ergonomics we wanted. Their version introduces the chat room in 551 lines across 8 files; here it is whole. This post preserves the original placeholder API that led to stagecraft. For the runnable package, start with [`README.md`](../../README.md) or [`examples/chat.ts`](../../examples/chat.ts).*
 
 ---
 
@@ -66,7 +66,7 @@ try {
 }
 ```
 
-That's the whole app. What you just used without being asked to learn it:
+That's the whole application shape. What you just used without being asked to learn it:
 
 - **Durable state.** `state` is a persisted document. It survives sleep, restarts, and deploys. Mutate the draft in your handler; it commits when the handler succeeds and is discarded when it throws — a failed action can't half-write.
 - **One message at a time.** Handlers on one actor instance never interleave. No locks, no lost updates.
@@ -74,6 +74,6 @@ That's the whole app. What you just used without being asked to learn it:
 - **Scheduling.** `self.after(1000).SendMessage(...)` is a durable timer, not a `setTimeout`.
 - **Events.** `emit.newMessage(...)` broadcasts to connected clients; the `events` block is the wire contract.
 
-Underneath, this is the Effect SDK — every handler runs as an Effect with typed error channels and tracing spans, and when you need that power you can drop to it directly. You just don't need it to say hello.
+Underneath, this is the Effect SDK's model — every handler runs as an Effect with typed error channels and tracing spans, and when you need that power you can drop to it directly. You just don't need it to say hello.
 
 *Part 2: what happens when your code has the bug you didn't declare.*

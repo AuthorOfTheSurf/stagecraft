@@ -1,6 +1,6 @@
 # The bar: seven requirements
 
-Everything in this repo is measured against these. They were written before the first line of the layer, and the dream code had to pass all of them before it earned an implementation.
+These are the seven requirements stagecraft is measured against. They were written before the first line of the layer, and the dream code had to pass all of them before it earned an implementation. The runnable package and its tests are the source of truth for current behavior; this page is the design bar.
 
 | # | Requirement | The test |
 |---|---|---|
