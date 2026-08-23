@@ -118,6 +118,19 @@ handle: {
 }
 ```
 
+### Cancelling a Scheduled Timer:
+`self.after(...).Action(p)` returns a **durable timer id** (`Promise<string>`) — ignore it for fire-and-forget, or keep it in state to revoke the timer later:
+
+```ts
+// Arm: keep the id in durable state
+state.pending = { id, timerId: await self.after(ttlMs).Expire({ id }) };
+
+// Resolve: cancel the timer (false = already fired or unknown — harmless)
+await self.cancel(state.pending.timerId);
+```
+
+Cancellation is best-effort: a fire already in flight can still land, so the scheduled handler should **re-check state and no-op when stale** (see `examples/support-agent.ts` and `examples/drip-campaign.ts`). Also note: scheduling is a side effect that does NOT roll back if the handler later throws — cancel is the compensation tool.
+
 ### How to Chain Work on Yourself:
 1. **Same transaction (synchronous)**: Call a plain JavaScript/TypeScript helper function directly:
    ```ts

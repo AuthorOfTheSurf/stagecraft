@@ -19,6 +19,8 @@ export type PendingApproval = {
   tool: "refundOrder";
   orderId: string;
   requestedAt: number;
+  /** The expiry timer, cancelled when a human resolves the approval. */
+  timerId: string;
 };
 
 // --- Tools ------------------------------------------------------------
@@ -80,9 +82,15 @@ export const SupportAgent = actor("SupportAgent", {
 
       if (action.kind === "refund") {
         const id = `approval-${state.nextApprovalId++}`;
-        state.pending = { id, tool: "refundOrder", orderId: action.orderId, requestedAt: Date.now() };
+        const timerId = await self.after(state.approvalTtlMs).ExpireApproval({ id });
+        state.pending = {
+          id,
+          tool: "refundOrder",
+          orderId: action.orderId,
+          requestedAt: Date.now(),
+          timerId,
+        };
         emit.approvalRequested(state.pending);
-        self.after(state.approvalTtlMs).ExpireApproval({ id });
         const reply: AgentMessage = {
           role: "agent",
           text: `A refund for ${action.orderId} needs a human sign-off (${id}).`,
@@ -105,8 +113,9 @@ export const SupportAgent = actor("SupportAgent", {
       return { awaitingApproval: null };
     },
 
-    Approve: async ({ id }: { id: string }, { state, emit, fail }) => {
+    Approve: async ({ id }: { id: string }, { state, emit, self, fail }) => {
       if (!state.pending || state.pending.id !== id) throw fail.NoSuchApproval({ id });
+      await self.cancel(state.pending.timerId);
       const result = refundOrder(state.pending.orderId);
       state.pending = null;
       const reply: AgentMessage = { role: "agent", text: result, at: Date.now() };
@@ -115,8 +124,9 @@ export const SupportAgent = actor("SupportAgent", {
       emit.approvalResolved({ id, outcome: "approved" });
     },
 
-    Deny: async ({ id, reason }: { id: string; reason: string }, { state, emit, fail }) => {
+    Deny: async ({ id, reason }: { id: string; reason: string }, { state, emit, self, fail }) => {
       if (!state.pending || state.pending.id !== id) throw fail.NoSuchApproval({ id });
+      await self.cancel(state.pending.timerId);
       state.pending = null;
       const reply: AgentMessage = {
         role: "agent",
@@ -128,8 +138,9 @@ export const SupportAgent = actor("SupportAgent", {
       emit.approvalResolved({ id, outcome: "denied" });
     },
 
-    // The expiry timer always fires; if the approval was already resolved,
-    // the id no longer matches and this is a no-op — the guard IS the cancel.
+    // Resolved approvals cancel their timer, so this normally fires only for
+    // a genuinely unanswered request. The id check stays as the backstop for
+    // a fire already in flight when the cancel landed.
     ExpireApproval: async ({ id }: { id: string }, { state, emit }) => {
       if (!state.pending || state.pending.id !== id) return;
       state.pending = null;

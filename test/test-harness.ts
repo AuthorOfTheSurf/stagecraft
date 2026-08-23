@@ -39,6 +39,25 @@ export const Slowpoke = actor("slowpoke", {
   },
 });
 
+// Test-only actor: arms, fires, and cancels its own timers, to prove
+// self.after's returned id and self.cancel against a real scheduler.
+export const TimerLab = actor("timer-lab", {
+  state: { fired: [] as string[] },
+  errors: {},
+  handle: {
+    Arm: async ({ ms, tag }: { ms: number; tag: string }, { self }) => ({
+      timerId: await self.after(ms).Fire({ tag }),
+    }),
+    Fire: async ({ tag }: { tag: string }, { state }) => {
+      state.fired.push(tag);
+    },
+    Cancel: async ({ timerId }: { timerId: string }, { self }) => ({
+      cancelled: await self.cancel(timerId),
+    }),
+    GetFired: async (_: void, { state }) => state.fired,
+  },
+});
+
 reapOrphanEngines(); // a stranded engine from a prior run poisons this one
 export const engine = testEngine(
   ChatRoom,
@@ -49,6 +68,7 @@ export const engine = testEngine(
   SupportAgent,
   CsvImporter,
   DripCampaign,
+  TimerLab,
 );
 
 // bun loads test files one at a time, so a per-suite refcount would hit

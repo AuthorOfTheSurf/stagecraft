@@ -27,8 +27,20 @@ export interface Ctx<S, Ev, Er> {
   state: S;
   /** Typed broadcast to connected clients. */
   emit: EmitOf<Ev>;
-  /** Schedule a message to this same actor: `self.after(ms).SendMessage(p)`. */
-  self: { after: (ms: number) => Record<string, (payload?: any) => void> };
+  /**
+   * Schedule a message to this same actor: `self.after(ms).SendMessage(p)`.
+   * Returns a durable timer id — keep it in state if you may need to
+   * `self.cancel` it later; ignore it for fire-and-forget.
+   */
+  self: {
+    after: (ms: number) => Record<string, (payload?: any) => Promise<string>>;
+    /**
+     * Revoke a scheduled timer. `false` means it already fired or the id is
+     * unknown. Scheduling does NOT roll back with a failed handler's state
+     * draft, so cancellation is also the compensation tool for that case.
+     */
+    cancel: (timerId: string) => Promise<boolean>;
+  };
   /** Call another actor: `actors(Moderator).getOrCreate(key).Review(p)`. */
   actors: <W extends AnyActorDef>(other: W) => {
     getOrCreate: (key: string) => ClientMethods<W["__handle"]>;
@@ -259,6 +271,7 @@ export function actor<
               get: (_, action: string) => (payload?: any) =>
                 rawRivetkitContext.schedule.after(ms, action, { data: payload }),
             }),
+          cancel: (timerId: string) => rawRivetkitContext.schedule.cancel(timerId),
         },
         actors: (other: AnyActorDef) => ({
           getOrCreate: (key: string) =>
