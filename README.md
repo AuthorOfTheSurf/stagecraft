@@ -2,7 +2,7 @@
 
 > The developer-first actor framework & observability suite for [Rivet](https://rivet.dev).
 
-**stagecraft** is an ergonomic layer over [`@rivetkit/effect`](https://www.npmjs.com/package/@rivetkit/effect): you write actors as plain async handlers and get durable state, one-message-at-a-time FIFO semantics, typed errors, durable scheduling, and events — without learning the underlying Effect machinery first. 
+**stagecraft** is an ergonomic layer over [`@rivetkit/effect`](https://www.npmjs.com/package/@rivetkit/effect): you write actors as plain async handlers and get durable state, one-message-at-a-time FIFO semantics, typed errors, durable scheduling, and events — without learning the underlying [Effect](https://effect.website/docs/getting-started/the-effect-type/) generic machinery (`Effect<Success, Error, Requirements>`, representing your computation's *return type*, *error types*, and *context resources*) first. 
 
 It also ships the **crew** that keeps a show running in production: an unexpected-error channel with agent-patchable reports, Sentry-style issue grouping with regression alerts, pluggable sinks (stdout, Discord, Slack), and a zero-dependency live monitor panel.
 
@@ -146,8 +146,8 @@ A referee actor scores rock-paper-scissors rounds and carries a realistic bug: t
 External alerting is two-key — a flag for intent, an env var for the credential, both required:
 
 ```sh
-bun run demo --discord    # requires DISCORD_WEBHOOK_URL
-bun run demo --slack      # requires SLACK_WEBHOOK_URL (from-zero setup: docs/qa/slack-adapter.md)
+bun run demo --discord    # requires DISCORD_WEBHOOK_URL (setup guide: docs/qa/discord-adapter.md)
+bun run demo --slack      # requires SLACK_WEBHOOK_URL (setup guide: docs/qa/slack-adapter.md)
 ```
 
 A flag whose env var is missing or garbled kills the demo at boot rather than running with a silently dead channel. `DEMO_TICK_MS=8000` slows the pace.
@@ -156,6 +156,7 @@ To verify a channel is wired without running the demo at all:
 
 ```sh
 bun run hello --slack               # posts "hello, world!" to the channel
+bun run hello --discord             # posts "hello, world!" to discord
 bun run hello --slack --example-error   # posts a realistically-shaped (clearly fake) error report
 ```
 
@@ -178,6 +179,7 @@ bun test              # the full suite, against a real local engine
 | [`src/demo-panel.ts`](src/demo-panel.ts) | The runnable demo |
 | [`src/hello.ts`](src/hello.ts) | Webhook connectivity check: `bun run hello --slack/--discord [--example-error]` |
 | [`src/engine-hygiene.ts`](src/engine-hygiene.ts) | Reaps orphaned `rivet-engine` processes that would poison the next run |
+| [`docs/qa/`](docs/qa/) | From-zero setup and manual QA runbooks for Discord and Slack webhook adapters |
 | [`docs/posts/`](docs/posts/) | The story, told as posts: the intro and "The Forgotten Draw" |
 | [`docs/design-notes.md`](docs/design-notes.md) | Design requirements, the ladder, and known v0 hazards |
 | [`docs/upstream-strengths.md`](docs/upstream-strengths.md) | What `@rivetkit/effect` gets right, and the functionality floor |
