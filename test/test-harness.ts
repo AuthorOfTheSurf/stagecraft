@@ -4,10 +4,10 @@
  * other's registrations, so all effect actors register here and suites
  * share the runtime via refcount.
  */
-import { ChatRoom, Moderator } from "./chat.ts";
-import { reapOrphanEngines } from "./engine-hygiene.ts";
-import { Referee } from "./monitor-demo.ts";
-import { testEngine } from "./layer.ts";
+import { ChatRoom, Moderator } from "../examples/chat.ts";
+import { Referee } from "../examples/monitor-demo.ts";
+import { testEngine } from "../src/index.ts";
+import { reapOrphanEngines } from "../src/tools/testing.ts";
 
 reapOrphanEngines(); // a stranded engine from a prior run poisons this one
 export const engine = testEngine(ChatRoom, Moderator, Referee);

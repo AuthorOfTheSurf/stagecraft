@@ -6,7 +6,12 @@
  * without learning the underlying Effect machinery first.
  *
  * The crew: an unexpected-error channel with agent-patchable reports,
- * Sentry-style issue grouping, pluggable alert sinks, and a live panel.
+ * Sentry-style issue grouping, and pluggable alert sinks.
+ *
+ * The backstage tools are Bun-only and live behind their own doors, so a
+ * consumer never pulls them into a build that cannot run them:
+ *   stagecraft/panel   — the live monitor panel
+ *   stagecraft/testing — test-harness helpers
  */
 export {
   actor,
@@ -28,6 +33,7 @@ export {
   stdout,
   discord,
   slack,
+  requireWebhookUrl,
   alertWith,
   stdoutAlert,
   discordAlert,
@@ -45,5 +51,3 @@ export {
   type IssueTracker,
 } from "./issues.ts";
 
-export { startPanel } from "./panel.ts";
-export { reapOrphanEngines } from "./engine-hygiene.ts";

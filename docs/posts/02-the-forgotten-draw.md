@@ -71,7 +71,7 @@ Adapters compose: Discord or Slack for the ping, Sentry for the paper trail, std
 - **Actors table**, fed by the activity channel (every handled action emits ok / declared-error / unexpected-error with latency). A per-row watchdog flags an actor **QUIET** when it stops emitting — this is how *silent* failures (wedged, never-woke, unreachable) become visible, the failure class no error channel can ever catch, because nothing throws.
 - **Failure feed**: the report blocks, newest first, live.
 
-Try it: `bun src/actors/proposed-simple-sdk/demo-panel.ts` boots a real engine, opens the panel, and plays rock-paper-scissors until the draw hits.
+Try it: `bun run demo` boots a real engine, opens the panel, and plays rock-paper-scissors until the draw hits.
 
 ## Why this matters for "just get started"
 

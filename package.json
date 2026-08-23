@@ -1,6 +1,6 @@
 {
   "name": "@authorofthesurf/stagecraft",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Plain actors on Rivet: async handlers, durable state, typed errors — plus the crew: error reports, issue grouping, alert adapters, and a live monitor panel.",
   "license": "MIT",
   "author": "Zane Kansil",
@@ -9,12 +9,26 @@
     "url": "git+https://github.com/AuthorOfTheSurf/stagecraft.git"
   },
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "bun": "./src/index.ts",
       "default": "./dist/index.js"
+    },
+    "./panel": {
+      "types": "./dist/tools/panel.d.ts",
+      "bun": "./src/tools/panel.ts",
+      "default": "./dist/tools/panel.js"
+    },
+    "./testing": {
+      "types": "./dist/tools/testing.d.ts",
+      "bun": "./src/tools/testing.ts",
+      "default": "./dist/tools/testing.js"
     }
+  },
+  "bin": {
+    "stagecraft": "./dist/tools/hello.js"
   },
   "files": [
     "dist",
@@ -23,8 +37,8 @@
   ],
   "scripts": {
     "test": "bun test",
-    "demo": "bun src/demo-panel.ts",
-    "hello": "bun src/hello.ts",
+    "demo": "bun examples/demo-panel.ts",
+    "hello": "bun src/tools/hello.ts",
     "typecheck": "tsc --noEmit",
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "prepublishOnly": "bun run typecheck && bun test && bun run build"

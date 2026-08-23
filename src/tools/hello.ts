@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 /**
  * Connectivity check for the webhook adapters: post a friendly greeting
  * (or, with --example-error, a realistically-shaped error report) so a
@@ -11,10 +12,11 @@
  * Same two-key rule as the demo: the flag is the intent, the env var is
  * the credential, both required.
  */
-import { discord, requireWebhookUrl, slack } from "./adapters.ts";
-import type { UnexpectedReport } from "./layer.ts";
+import { discord, requireWebhookUrl, slack, type UnexpectedReport } from "../index.ts";
 
-const USAGE = "usage: bun run hello (--slack and/or --discord) [--example-error]";
+const USAGE =
+  "usage: stagecraft hello (--slack and/or --discord) [--example-error]\n" +
+  "   or: bun run hello (--slack and/or --discord) [--example-error]";
 
 type Channel = {
   flag: string;
@@ -52,7 +54,9 @@ const CHANNELS: Channel[] = [
   },
 ];
 
-const args = process.argv.slice(2);
+const argv = process.argv.slice(2);
+// `stagecraft hello --slack` and `bun run hello --slack` both land here.
+const args = argv[0] === "hello" ? argv.slice(1) : argv;
 const known = [...CHANNELS.map((c) => c.flag), "--example-error"];
 for (const a of args) {
   if (!known.includes(a)) {

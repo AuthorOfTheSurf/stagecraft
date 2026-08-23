@@ -5,7 +5,7 @@
  * typed-guard error handling, and reject-leaves-state-untouched.
  */
 import { afterAll, expect, test } from "bun:test";
-import { ChatRoom, Moderator } from "./chat.ts";
+import { ChatRoom, Moderator } from "../examples/chat.ts";
 import { engine, release, retain } from "./test-harness.ts";
 
 retain();

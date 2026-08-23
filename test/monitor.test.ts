@@ -4,8 +4,8 @@
  * the monitor, and (3) leaves the actor alive with its state untouched.
  */
 import { afterAll, expect, test } from "bun:test";
-import { isUnexpected } from "./layer.ts";
-import { Referee, format, monitor } from "./monitor-demo.ts";
+import { Referee, monitor } from "../examples/monitor-demo.ts";
+import { format, isUnexpected } from "../src/index.ts";
 import { engine, release, retain } from "./test-harness.ts";
 
 retain();

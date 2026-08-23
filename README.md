@@ -28,7 +28,7 @@ export const Counter = actor("Counter", {
 
 That is a durable, addressable, one-message-at-a-time actor. No `Effect.gen`, no `Layer`, no `yield*` — Effect is the implementation substrate underneath, not your cognitive burden. 
 
-**The flagship comparison**: Rivet's launch-post chat room is 551 lines across 8 files in the raw Effect idiom; the same app on stagecraft is ~90 lines in one file ([`src/chat.ts`](src/chat.ts)) with zero Effect syntax in user code. Same engine, same wire format, same durability.
+**The flagship comparison**: Rivet's launch-post chat room is 551 lines across 8 files in the raw Effect idiom; the same app on stagecraft is ~90 lines in one file ([`examples/chat.ts`](examples/chat.ts)) with zero Effect syntax in user code. Same engine, same wire format, same durability.
 
 ---
 
@@ -82,6 +82,8 @@ That is a durable, addressable, one-message-at-a-time actor. No `Effect.gen`, no
 
 ### 3. The Live Monitor Panel (`startPanel`)
 
+> Imported from `@authorofthesurf/stagecraft/panel`. It runs on `Bun.serve`, so it lives behind its own subpath and never enters a build that cannot run it.
+
 | Component | Capabilities |
 |---|---|
 | **Zero-Dependency SSE Server** | Serves a single-page dark-themed dashboard over native `Bun.serve` and Server-Sent Events (`/events`). No React, Tailwind, or npm client dependencies. |
@@ -97,7 +99,7 @@ That is a durable, addressable, one-message-at-a-time actor. No `Effect.gen`, no
 | Tool | Problem Solved |
 |---|---|
 | **One-Line Test Engine (`testEngine`)** | Boots a local `rivet-engine` instance with typed client accessors. Merges actor layers into a single `ManagedRuntime` to prevent `Registry.test` clobbering. |
-| **Zombie Engine Reaper (`reapOrphanEngines`)** | Automatically searches for and terminates orphaned `rivet-engine` background processes on startup, preventing port 6420 collisions. |
+| **Zombie Engine Reaper (`reapOrphanEngines`)** — from `@authorofthesurf/stagecraft/testing` | Automatically searches for and terminates orphaned `rivet-engine` background processes on startup, preventing port 6420 collisions. |
 | **Two-Key Security Pattern** | External alerting requires both a deliberate CLI flag (`--slack`, `--discord`) and the environment variable (`SLACK_WEBHOOK_URL`, `DISCORD_WEBHOOK_URL`), catching typos early. |
 | **Publish Quality Gate** | `prepublishOnly` script automatically runs `tsc --noEmit`, `bun test`, and `bun run build` before packaging to npm. |
 
@@ -125,7 +127,8 @@ A thrown error nobody declared doesn't vanish into a masked `internal_error`. It
 3. an **issue**: reports group by fingerprint, Sentry-style. New issues alert; recurrences count quietly; a *resolved* issue that returns alerts loudly as a **REGRESSION** and reopens.
 
 ```ts
-import { issueTracker, alertWith, stdoutAlert, discordAlert, slackAlert, startPanel } from "@authorofthesurf/stagecraft";
+import { issueTracker, alertWith, stdoutAlert, discordAlert, slackAlert } from "@authorofthesurf/stagecraft";
+import { startPanel } from "@authorofthesurf/stagecraft/panel";
 
 const tracker = issueTracker();
 alertWith(tracker, stdoutAlert(), discordAlert({ webhookUrl }), slackAlert({ webhookUrl: slackUrl }));
@@ -168,17 +171,31 @@ bun test              # the full suite, against a real local engine
 
 ## Repository Map
 
+**The package** — this is all that ships to npm.
+
 | File | What it is |
 |---|---|
 | [`src/layer.ts`](src/layer.ts) | The layer itself: `actor()`, `testEngine()`, the unexpected-error and activity channels |
-| [`src/chat.ts`](src/chat.ts) | The chat-room exhibit — the launch-post app at level 0 |
-| [`src/monitor-demo.ts`](src/monitor-demo.ts) | The Referee with the forgotten-draw bug |
 | [`src/issues.ts`](src/issues.ts) | Fingerprint grouping + the new/recurrence/regression policy |
 | [`src/adapters.ts`](src/adapters.ts) | Composable sinks: per-report `watch(...)` and issue-level `alertWith(...)` — stdout, Discord, Slack |
-| [`src/panel.ts`](src/panel.ts) | The live panel: actors + QUIET watchdog, issues + Resolve, failure feed (SSE, zero deps) |
-| [`src/demo-panel.ts`](src/demo-panel.ts) | The runnable demo |
-| [`src/hello.ts`](src/hello.ts) | Webhook connectivity check: `bun run hello --slack/--discord [--example-error]` |
-| [`src/engine-hygiene.ts`](src/engine-hygiene.ts) | Reaps orphaned `rivet-engine` processes that would poison the next run |
+| [`src/tools/panel.ts`](src/tools/panel.ts) | `stagecraft/panel` — the live panel: actors + QUIET watchdog, issues + Resolve, failure feed (SSE, zero deps) |
+| [`src/tools/testing.ts`](src/tools/testing.ts) | `stagecraft/testing` — reaps orphaned `rivet-engine` processes that would poison the next run |
+| [`src/tools/hello.ts`](src/tools/hello.ts) | The `stagecraft` bin: webhook connectivity check — `npx @authorofthesurf/stagecraft hello --slack` |
+| [`src/index.ts`](src/index.ts) | The root export: the portable core. Backstage tools sit behind their own subpaths, so importing `actor` never drags a Bun-only web server into your build. |
+
+**The exhibits** — examples and tests, repo-only.
+
+| File | What it is |
+|---|---|
+| [`examples/chat.ts`](examples/chat.ts) | The chat-room exhibit — the launch-post app at level 0 |
+| [`examples/monitor-demo.ts`](examples/monitor-demo.ts) | The Referee with the forgotten-draw bug |
+| [`examples/demo-panel.ts`](examples/demo-panel.ts) | The runnable demo: `bun run demo` |
+| [`test/`](test/) | Integration tests, borrowing the examples as fixtures |
+
+**The docs.**
+
+| File | What it is |
+|---|---|
 | [`AGENTS.md`](AGENTS.md) | AI coding agent reference: rules of the stage, error contracts, and self-deadlock prevention |
 | [`docs/qa/`](docs/qa/) | From-zero setup and manual QA runbooks for Discord and Slack webhook adapters |
 | [`docs/posts/`](docs/posts/) | The story, told as posts: the intro and "The Forgotten Draw" |
