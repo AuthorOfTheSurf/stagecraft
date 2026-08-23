@@ -9,12 +9,26 @@
     "url": "git+https://github.com/AuthorOfTheSurf/stagecraft.git"
   },
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "bun": "./src/index.ts",
       "default": "./dist/index.js"
+    },
+    "./panel": {
+      "types": "./dist/tools/panel.d.ts",
+      "bun": "./src/tools/panel.ts",
+      "default": "./dist/tools/panel.js"
+    },
+    "./testing": {
+      "types": "./dist/tools/testing.d.ts",
+      "bun": "./src/tools/testing.ts",
+      "default": "./dist/tools/testing.js"
     }
+  },
+  "bin": {
+    "stagecraft": "./dist/tools/hello.js"
   },
   "files": [
     "dist",
@@ -24,7 +38,7 @@
   "scripts": {
     "test": "bun test",
     "demo": "bun examples/demo-panel.ts",
-    "hello": "bun examples/hello.ts",
+    "hello": "bun src/tools/hello.ts",
     "typecheck": "tsc --noEmit",
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "prepublishOnly": "bun run typecheck && bun test && bun run build"

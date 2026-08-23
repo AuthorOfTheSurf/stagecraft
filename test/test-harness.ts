@@ -6,7 +6,8 @@
  */
 import { ChatRoom, Moderator } from "../examples/chat.ts";
 import { Referee } from "../examples/monitor-demo.ts";
-import { reapOrphanEngines, testEngine } from "../src/index.ts";
+import { testEngine } from "../src/index.ts";
+import { reapOrphanEngines } from "../src/tools/testing.ts";
 
 reapOrphanEngines(); // a stranded engine from a prior run poisons this one
 export const engine = testEngine(ChatRoom, Moderator, Referee);

@@ -169,7 +169,8 @@ test("join and error handling", async () => {
 ## 6. Observability & Sinks
 
 ```ts
-import { issueTracker, alertWith, stdoutAlert, discordAlert, slackAlert, startPanel } from "@authorofthesurf/stagecraft";
+import { issueTracker, alertWith, stdoutAlert, discordAlert, slackAlert } from "@authorofthesurf/stagecraft";
+import { startPanel } from "@authorofthesurf/stagecraft/panel";
 
 const tracker = issueTracker();
 

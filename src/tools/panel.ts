@@ -11,8 +11,8 @@
  *  - Failure feed (unexpected-error channel): the agent-patchable report
  *    blocks, newest first, streamed live over server-sent events (SSE).
  */
-import { fingerprintOf, type Issue, type IssueTracker } from "./issues.ts";
-import { onActivity, onUnexpected, type ActivityEvent, type UnexpectedReport } from "./layer.ts";
+import { fingerprintOf, type Issue, type IssueTracker } from "../issues.ts";
+import { onActivity, onUnexpected, type ActivityEvent, type UnexpectedReport } from "../layer.ts";
 
 const MAX_REPORTS = 100;
 

@@ -10,13 +10,13 @@ import {
   alertWith,
   discordAlert,
   issueTracker,
-  reapOrphanEngines,
   slackAlert,
-  startPanel,
   stdoutAlert,
   testEngine,
   type IssueAlertAdapter,
 } from "../src/index.ts";
+import { startPanel } from "../src/tools/panel.ts";
+import { reapOrphanEngines } from "../src/tools/testing.ts";
 import { ChatRoom, Moderator } from "./chat.ts";
 
 reapOrphanEngines();

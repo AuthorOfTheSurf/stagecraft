@@ -10,8 +10,13 @@
     // alone only works with noEmit).
     "rewriteRelativeImportExtensions": true
   },
-  // Only the public surface and what it pulls in. Examples and tests live
-  // outside src/ and are never built or shipped.
+  // Every published entry point: the core barrel, the two backstage subpaths,
+  // and the bin. Examples and tests live outside src/ and are never built.
   "include": [],
-  "files": ["src/index.ts"]
+  "files": [
+    "src/index.ts",
+    "src/tools/panel.ts",
+    "src/tools/testing.ts",
+    "src/tools/hello.ts"
+  ]
 }

@@ -23,7 +23,7 @@ The design requirements, in one breath: match the actor mental model (messages, 
 | [`chat.ts`](../examples/chat.ts) | The launch-post chat room on the layer — the Part 1 exhibit |
 | [`monitor-demo.ts`](../examples/monitor-demo.ts) | Part 2: the Referee with the forgotten-draw bug + the in-process monitor |
 | [`adapters.ts`](../src/adapters.ts) | Composable report sinks: `watch(stdout(), discord({webhookUrl}))` |
-| [`panel.ts`](../src/panel.ts) | The live web panel: actors table with QUIET watchdog + failure feed over SSE |
+| [`tools/panel.ts`](../src/tools/panel.ts) | The live web panel: actors table with QUIET watchdog + failure feed over SSE |
 | [`demo-panel.ts`](../examples/demo-panel.ts) | Run it: boots an engine, opens the panel, plays RPS until the draw hits |
 | [`test-harness.ts`](../test/test-harness.ts) | One engine + one registry per process (two `Registry.test` instances clobber each other) |
 | [`posts/`](./posts/) | The story, told as posts: the rewritten intro and Part 2 |
