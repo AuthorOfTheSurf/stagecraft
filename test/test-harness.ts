@@ -21,8 +21,23 @@ export const ReservedFieldDemo = actor("reserved-field-demo", {
   },
 });
 
+// Proves the runtime knobs actually reach rivetkit: a 300ms action cap is far
+// below the 60s default, so a handler that sleeps past it can only die if the
+// option landed.
+export const Slowpoke = actor("slowpoke", {
+  state: {},
+  errors: {},
+  options: { actionTimeout: 300 },
+  handle: {
+    Dawdle: async (ms: number) => {
+      await new Promise((r) => setTimeout(r, ms));
+      return "finished";
+    },
+  },
+});
+
 reapOrphanEngines(); // a stranded engine from a prior run poisons this one
-export const engine = testEngine(ChatRoom, Moderator, Referee, ReservedFieldDemo);
+export const engine = testEngine(ChatRoom, Moderator, Referee, ReservedFieldDemo, Slowpoke);
 
 // bun loads test files one at a time, so a per-suite refcount would hit
 // zero between files. Dispose exactly once, when the whole process ends.

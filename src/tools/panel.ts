@@ -2,7 +2,8 @@
  * The tiny web panel: a live view over the monitor channels. One page,
  * no dependencies, served straight from the process running the actors.
  *
- *  - Actors table (activity channel): last action, outcome, latency —
+ *  - Actors table (activity channel): last action, outcome, latency, and a
+ *    running per-action tally —
  *    with a per-row watchdog that flags an actor QUIET when it has emitted
  *    nothing for the threshold. Silent failures become visible here.
  *  - Issues table (pass an issueTracker): defects grouped by fingerprint
@@ -19,6 +20,10 @@ const MAX_REPORTS = 100;
 export function startPanel({ port = 4949, quietAfterMs = 30_000, tracker }: { port?: number; quietAfterMs?: number; tracker?: IssueTracker } = {}) {
   const reports: UnexpectedReport[] = [];
   const lastActivity = new Map<string, ActivityEvent>();
+  // Per-instance running count of how many times each action has run. Kept on
+  // the server, not the page, so a reconnecting tab gets the true totals back
+  // instead of restarting from zero.
+  const tallies = new Map<string, Record<string, number>>();
   const clients = new Set<(line: string) => void>();
 
   const push = (event: "activity" | "report" | "issue", data: unknown) => {
@@ -27,8 +32,12 @@ export function startPanel({ port = 4949, quietAfterMs = 30_000, tracker }: { po
   };
 
   const stopActivity = onActivity((ev) => {
-    lastActivity.set(`${ev.actor}\u0000${ev.key}`, ev);
-    push("activity", ev);
+    const id = `${ev.actor}\u0000${ev.key}`;
+    lastActivity.set(id, ev);
+    const tally = { ...(tallies.get(id) ?? {}) };
+    tally[ev.action] = (tally[ev.action] ?? 0) + 1;
+    tallies.set(id, tally);
+    push("activity", { ...ev, tally });
   });
   const stopReports = onUnexpected((r) => {
     reports.unshift(r);
@@ -53,7 +62,7 @@ export function startPanel({ port = 4949, quietAfterMs = 30_000, tracker }: { po
             };
             clients.add(send);
             // Backlog on connect: liveness snapshot, issues, then reports oldest-first.
-            for (const ev of lastActivity.values()) send(`event: activity\ndata: ${JSON.stringify(ev)}\n\n`);
+            for (const [id, ev] of lastActivity) send(`event: activity\ndata: ${JSON.stringify({ ...ev, tally: tallies.get(id) })}\n\n`);
             if (tracker) for (const i of tracker.issues.values()) send(`event: issue\ndata: ${JSON.stringify(issueRow(i))}\n\n`);
             for (const r of [...reports].reverse()) send(`event: report\ndata: ${JSON.stringify({ ...r, fingerprint: fingerprintOf(r) })}\n\n`);
           },
@@ -70,7 +79,9 @@ export function startPanel({ port = 4949, quietAfterMs = 30_000, tracker }: { po
         return new Response(issue ? "resolved" : "not found", { status: issue ? 200 : 404 });
       }
       return new Response(
-        PAGE.replace("__QUIET_MS__", String(quietAfterMs)).replace("__HAS_ISSUES__", String(Boolean(tracker))),
+        PAGE.replace("__QUIET_MS__", String(quietAfterMs))
+          .replace("__QUIET_S__", String(Math.round(quietAfterMs / 1000)))
+          .replace("__HAS_ISSUES__", String(Boolean(tracker))),
         { headers: { "content-type": "text/html; charset=utf-8" } },
       );
     },
@@ -92,6 +103,7 @@ const PAGE = `<!doctype html>
   table { border-collapse: collapse; margin-bottom: 2rem; min-width: 40rem; }
   th, td { text-align: left; padding: .35rem .9rem .35rem 0; border-bottom: 1px solid #262a31; }
   th { color: #8b93a1; font-weight: normal; }
+  th[title] { cursor: help; border-bottom: 1px dashed #3a404a; }
   .ok { color: #7dc87d; }
   .declared-error { color: #e0b45c; }
   .unexpected-error { color: #e26d6d; font-weight: bold; }
@@ -103,6 +115,7 @@ const PAGE = `<!doctype html>
   button { background: #262a31; color: #d6dae0; border: 1px solid #3a404a; border-radius: 4px; padding: .15rem .6rem; cursor: pointer; font: inherit; }
   button:hover { background: #3a404a; }
   #empty { color: #4c525c; }
+  .hint { color: #4c525c; text-transform: none; letter-spacing: 0; font-size: .8rem; }
   @keyframes tick { 0% { color: #e0b45c; font-weight: bold; } 100% { color: inherit; font-weight: inherit; } }
   .tick { animation: tick 1.2s ease-out; }
   details.group { margin: .6rem 0; }
@@ -110,12 +123,27 @@ const PAGE = `<!doctype html>
   details.group > summary .n { color: #8b93a1; }
   details.group .report { margin: .3rem 0 .3rem 1rem; }
 </style>
-<h1>Actors</h1>
-<table><thead><tr><th>actor</th><th>instance</th><th>last action</th><th>outcome</th><th>latency</th><th>last seen</th></tr></thead>
+<h1>Actors <span class=hint>hover any column header for what it means</span></h1>
+<table><thead><tr>
+<th title="The actor definition's name — the factory this instance was made from.">actor</th>
+<th title="Which instance of that actor. This is the key you addressed it by (multi-part keys are joined with /). A dash means the actor is keyless.">instance</th>
+<th title="The name of the most recent handler that ran on this instance.">last action</th>
+<th title="How that action ended. ok = returned normally. declared-error = it threw one of the actor's own declared errors (expected, handled). unexpected-error = it threw something nobody declared — that's a defect, and it shows up in the feed below.">outcome</th>
+<th title="Wall-clock time that one action took, from handler start to finish. Includes anything the handler awaited (network, LLM calls, other actors) — it is not CPU time.">latency</th>
+<th title="How long ago that last action finished. It resets every time the instance does anything. If it passes the quiet threshold (__QUIET_S__s here) the row is flagged QUIET — the actor has gone silent, which is how a stuck or dead actor becomes visible.">last seen</th>
+<th title="Running tally of every action this instance has run since the panel started, newest counts included. Proof of work when nothing is going wrong.">actions</th>
+</tr></thead>
 <tbody id="actors"></tbody></table>
 <div id="issues-section" style="display:none">
 <h1>Issues</h1>
-<table><thead><tr><th>issue</th><th>status</th><th>count</th><th>first seen</th><th>last seen</th><th></th></tr></thead>
+<table><thead><tr>
+<th title="One distinct defect. Failures are grouped by fingerprint (actor + action + error), so a hundred repeats of the same bug are one row, not a hundred.">issue</th>
+<th title="open = still unhandled. resolved = you clicked Resolve. REGRESSION = you resolved it and it came back anyway.">status</th>
+<th title="How many times this same defect has fired since the process started.">count</th>
+<th title="When this defect was first seen in this process.">first seen</th>
+<th title="The most recent time it fired.">last seen</th>
+<th></th>
+</tr></thead>
 <tbody id="issues"></tbody></table>
 </div>
 <h1>Unexpected errors</h1>
@@ -132,6 +160,12 @@ const PAGE = `<!doctype html>
   // Restart the amber tick animation even if it's still mid-fade.
   const flash = (el) => { el.classList.remove("tick"); void el.offsetWidth; el.classList.add("tick"); };
 
+  // "takeTurn 12\u00d7, tune 1\u00d7" — busiest action first.
+  const tallyText = (tally) => Object.entries(tally || {})
+    .sort((a, b) => b[1] - a[1])
+    .map(([action, n]) => action + " " + n + "\u00d7")
+    .join(", ");
+
   function renderActors() {
     tbody.innerHTML = "";
     for (const [, ev] of [...actors].sort((a, b) => a[0] < b[0] ? -1 : 1)) {
@@ -144,7 +178,8 @@ const PAGE = `<!doctype html>
         "<td>" + ev.action + "</td>" +
         "<td class=" + ev.outcome + ">" + ev.outcome + "</td>" +
         "<td>" + ev.ms + "ms</td>" +
-        "<td>" + Math.round(age / 1000) + "s ago</td>";
+        "<td>" + Math.round(age / 1000) + "s ago</td>" +
+        "<td>" + tallyText(ev.tally) + "</td>";
       tbody.appendChild(row);
     }
   }

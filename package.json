@@ -1,7 +1,7 @@
 {
   "name": "@authorofthesurf/stagecraft",
-  "version": "0.2.0",
-  "description": "Plain actors on Rivet: async handlers, durable state, typed errors — plus the crew: error reports, issue grouping, alert adapters, and a live monitor panel.",
+  "version": "0.3.0",
+  "description": "Plain actors on Rivet: async handlers, durable state, typed errors \u2014 plus the crew: error reports, issue grouping, alert adapters, and a live monitor panel.",
   "license": "MIT",
   "author": "Zane Kansil",
   "repository": {
