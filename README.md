@@ -28,7 +28,7 @@ export const Counter = actor("Counter", {
 
 That is a durable, addressable, one-message-at-a-time actor. No `Effect.gen`, no `Layer`, no `yield*` — Effect is the implementation substrate underneath, not your cognitive burden. 
 
-**The flagship comparison**: Rivet's launch-post chat room is 551 lines across 8 files in the raw Effect idiom; the same app on stagecraft is ~90 lines in one file ([`src/chat.ts`](src/chat.ts)) with zero Effect syntax in user code. Same engine, same wire format, same durability.
+**The flagship comparison**: Rivet's launch-post chat room is 551 lines across 8 files in the raw Effect idiom; the same app on stagecraft is ~90 lines in one file ([`examples/chat.ts`](examples/chat.ts)) with zero Effect syntax in user code. Same engine, same wire format, same durability.
 
 ---
 
@@ -168,17 +168,31 @@ bun test              # the full suite, against a real local engine
 
 ## Repository Map
 
+**The package** — this is all that ships to npm.
+
 | File | What it is |
 |---|---|
 | [`src/layer.ts`](src/layer.ts) | The layer itself: `actor()`, `testEngine()`, the unexpected-error and activity channels |
-| [`src/chat.ts`](src/chat.ts) | The chat-room exhibit — the launch-post app at level 0 |
-| [`src/monitor-demo.ts`](src/monitor-demo.ts) | The Referee with the forgotten-draw bug |
 | [`src/issues.ts`](src/issues.ts) | Fingerprint grouping + the new/recurrence/regression policy |
 | [`src/adapters.ts`](src/adapters.ts) | Composable sinks: per-report `watch(...)` and issue-level `alertWith(...)` — stdout, Discord, Slack |
 | [`src/panel.ts`](src/panel.ts) | The live panel: actors + QUIET watchdog, issues + Resolve, failure feed (SSE, zero deps) |
-| [`src/demo-panel.ts`](src/demo-panel.ts) | The runnable demo |
-| [`src/hello.ts`](src/hello.ts) | Webhook connectivity check: `bun run hello --slack/--discord [--example-error]` |
 | [`src/engine-hygiene.ts`](src/engine-hygiene.ts) | Reaps orphaned `rivet-engine` processes that would poison the next run |
+| [`src/index.ts`](src/index.ts) | The public surface — everything above, re-exported |
+
+**The exhibits** — examples and tests, repo-only.
+
+| File | What it is |
+|---|---|
+| [`examples/chat.ts`](examples/chat.ts) | The chat-room exhibit — the launch-post app at level 0 |
+| [`examples/monitor-demo.ts`](examples/monitor-demo.ts) | The Referee with the forgotten-draw bug |
+| [`examples/demo-panel.ts`](examples/demo-panel.ts) | The runnable demo: `bun run demo` |
+| [`examples/hello.ts`](examples/hello.ts) | Webhook connectivity check: `bun run hello --slack/--discord [--example-error]` |
+| [`test/`](test/) | Integration tests, borrowing the examples as fixtures |
+
+**The docs.**
+
+| File | What it is |
+|---|---|
 | [`AGENTS.md`](AGENTS.md) | AI coding agent reference: rules of the stage, error contracts, and self-deadlock prevention |
 | [`docs/qa/`](docs/qa/) | From-zero setup and manual QA runbooks for Discord and Slack webhook adapters |
 | [`docs/posts/`](docs/posts/) | The story, told as posts: the intro and "The Forgotten Draw" |

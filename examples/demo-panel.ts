@@ -6,15 +6,21 @@
  *   bun run demo                       # panel + stdout alerts, no dependencies
  *   bun run demo --discord --slack     # also alert externally (env vars required)
  */
-import { alertWith, discordAlert, slackAlert, stdoutAlert, type IssueAlertAdapter } from "./adapters.ts";
+import {
+  alertWith,
+  discordAlert,
+  issueTracker,
+  reapOrphanEngines,
+  slackAlert,
+  startPanel,
+  stdoutAlert,
+  testEngine,
+  type IssueAlertAdapter,
+} from "../src/index.ts";
 import { ChatRoom, Moderator } from "./chat.ts";
-import { reapOrphanEngines } from "./engine-hygiene.ts";
-import { issueTracker } from "./issues.ts";
-import { testEngine } from "./layer.ts";
 
 reapOrphanEngines();
 import { Referee, type Choice } from "./monitor-demo.ts";
-import { startPanel } from "./panel.ts";
 
 // Issue-level alerting: new issues and regressions ping; recurrences only
 // count. Resolve an issue in the panel, wait for it to recur, and watch

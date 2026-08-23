@@ -4,7 +4,7 @@ A working v0 of the ergonomic layer we believe should sit on top of `@rivetkit/e
 
 ## Why this exists
 
-Rivet's actor primitive is excellent. Its current Effect SDK asks a newcomer to learn ~18 Effect concepts (`Effect.gen`, `yield*`, `Layer`, `Scope`, `fnUntraced`, …) before the first actor runs — the flagship chat-room example is 551 lines across 8 files. The same app on this layer is ~90 lines in 1 file with **zero Effect syntax in user code** ([`chat.ts`](../src/chat.ts)). Same engine, same wire format, same durability underneath.
+Rivet's actor primitive is excellent. Its current Effect SDK asks a newcomer to learn ~18 Effect concepts (`Effect.gen`, `yield*`, `Layer`, `Scope`, `fnUntraced`, …) before the first actor runs — the flagship chat-room example is 551 lines across 8 files. The same app on this layer is ~90 lines in 1 file with **zero Effect syntax in user code** ([`chat.ts`](../examples/chat.ts)). Same engine, same wire format, same durability underneath.
 
 The design requirements, in one breath: match the actor mental model (messages, handlers, state, visible by name); require no prerequisite ecosystem; pass the Stripe test (basic integration in 10–20 lines, ~20 minutes); be built *on* Effect, not hiding from it (graceful drop-down); and let a vague mental model start small and harden incrementally.
 
@@ -20,12 +20,12 @@ The design requirements, in one breath: match the actor mental model (messages, 
 | File | What it is |
 |---|---|
 | [`layer.ts`](../src/layer.ts) | The layer itself: `actor()`, `testEngine()`, and the unexpected-error channel |
-| [`chat.ts`](../src/chat.ts) | The launch-post chat room on the layer — the Part 1 exhibit |
-| [`monitor-demo.ts`](../src/monitor-demo.ts) | Part 2: the Referee with the forgotten-draw bug + the in-process monitor |
+| [`chat.ts`](../examples/chat.ts) | The launch-post chat room on the layer — the Part 1 exhibit |
+| [`monitor-demo.ts`](../examples/monitor-demo.ts) | Part 2: the Referee with the forgotten-draw bug + the in-process monitor |
 | [`adapters.ts`](../src/adapters.ts) | Composable report sinks: `watch(stdout(), discord({webhookUrl}))` |
 | [`panel.ts`](../src/panel.ts) | The live web panel: actors table with QUIET watchdog + failure feed over SSE |
-| [`demo-panel.ts`](../src/demo-panel.ts) | Run it: boots an engine, opens the panel, plays RPS until the draw hits |
-| [`test-harness.ts`](../src/test-harness.ts) | One engine + one registry per process (two `Registry.test` instances clobber each other) |
+| [`demo-panel.ts`](../examples/demo-panel.ts) | Run it: boots an engine, opens the panel, plays RPS until the draw hits |
+| [`test-harness.ts`](../test/test-harness.ts) | One engine + one registry per process (two `Registry.test` instances clobber each other) |
 | [`posts/`](./posts/) | The story, told as posts: the rewritten intro and Part 2 |
 | The raw-idiom baseline (the same patterns written directly against `@rivetkit/effect`) lives alongside the original exhibit; the side-by-side is told in [`posts/01-introducing.md`](./posts/01-introducing.md). ||
 

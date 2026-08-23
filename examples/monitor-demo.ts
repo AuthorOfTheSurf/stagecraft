@@ -6,7 +6,7 @@
  * UnexpectedError plus a report rich enough that a coding agent can read
  * it and produce the patch.
  */
-import { actor, onUnexpected, type UnexpectedReport } from "./layer.ts";
+import { actor, onUnexpected, type UnexpectedReport } from "../src/index.ts";
 
 export type Choice = "rock" | "paper" | "scissors";
 
@@ -53,4 +53,3 @@ export function monitor() {
   return { reports, stop };
 }
 
-export { format } from "./adapters.ts";

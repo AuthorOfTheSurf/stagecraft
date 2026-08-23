@@ -11,8 +11,7 @@
  * Same two-key rule as the demo: the flag is the intent, the env var is
  * the credential, both required.
  */
-import { discord, requireWebhookUrl, slack } from "./adapters.ts";
-import type { UnexpectedReport } from "./layer.ts";
+import { discord, requireWebhookUrl, slack, type UnexpectedReport } from "../src/index.ts";
 
 const USAGE = "usage: bun run hello (--slack and/or --discord) [--example-error]";
 

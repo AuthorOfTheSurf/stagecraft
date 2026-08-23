@@ -28,6 +28,7 @@ export {
   stdout,
   discord,
   slack,
+  requireWebhookUrl,
   alertWith,
   stdoutAlert,
   discordAlert,

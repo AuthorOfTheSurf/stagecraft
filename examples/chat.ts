@@ -4,7 +4,7 @@
  * Messages live in actor state (the durable JSON store every actor already
  * has); SQLite stays a deliberate graft-on for later, per the design doc.
  */
-import { actor } from "./layer.ts";
+import { actor } from "../src/index.ts";
 
 export type Member = { name: string; joinedAt: number };
 export type ChatMessage = { sender: string; text: string; at: number };

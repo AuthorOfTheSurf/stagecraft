@@ -10,8 +10,8 @@
     // alone only works with noEmit).
     "rewriteRelativeImportExtensions": true
   },
-  // Only the public surface and what it pulls in — tests, demos, and the
-  // hello/demo scripts stay source-only.
+  // Only the public surface and what it pulls in. Examples and tests live
+  // outside src/ and are never built or shipped.
   "include": [],
   "files": ["src/index.ts"]
 }
