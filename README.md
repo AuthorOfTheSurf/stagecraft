@@ -6,33 +6,96 @@
 
 > The developer-first actor framework & observability suite for [Rivet](https://rivet.dev).
 
-**stagecraft** is an ergonomic layer over [`@rivetkit/effect`](https://www.npmjs.com/package/@rivetkit/effect): you write actors as plain async handlers and get durable state, one-message-at-a-time FIFO semantics, typed errors, durable scheduling, and events — without learning the underlying [Effect](https://effect.website/docs/getting-started/the-effect-type/) generic machinery (`Effect<Success, Error, Requirements>`, representing your computation's *return type*, *error types*, and *context resources*) first. 
+**stagecraft** is an ergonomic layer over [`@rivetkit/effect`](https://www.npmjs.com/package/@rivetkit/effect): you write actors as plain async handlers and get durable state, one-message-at-a-time FIFO semantics, typed errors, durable scheduling, and events — without having to learn the underlying [Effect](https://effect.website/docs/getting-started/the-effect-type/) machinery first.
 
-It also ships the **crew** that keeps a show running in production: an unexpected-error channel with agent-patchable reports, Sentry-style issue grouping with regression alerts, pluggable sinks (stdout, Discord, Slack), and a zero-dependency live monitor panel.
+It also ships the **crew** that keeps a show running: an unexpected-error channel with agent-patchable reports, Sentry-style issue grouping with regression alerts, pluggable sinks (stdout, Discord, Slack), and a zero-dependency live monitor panel.
 
-> **Status: exploratory v0.** This is an independent design exploration, not an official Rivet project. Every exported name is a placeholder. The `@rivetkit/effect` dependency is pinned; upstream changes are pulled in deliberately.
+> **Status: experimental v0.x.** Stagecraft is an independent project, not an official Rivet project. The API is still evolving, so expect breaking changes. The `@rivetkit/effect` dependency is pinned; upstream changes are pulled in deliberately.
 
 ---
 
-## The pitch, in code
+## A real actor, in plain TypeScript
+
+This is the chat room from Rivet's Effect SDK launch post, rewritten in stagecraft. It is small enough to read in one sitting, but real enough to show the pieces that matter: durable state, typed domain errors, events, delayed messages, and actor-to-actor calls.
 
 ```ts
 import { actor } from "@authorofthesurf/stagecraft";
 
-export const Counter = actor("Counter", {
-  state: { count: 0 },
+type Member = { name: string; joinedAt: number };
+type ChatMessage = { sender: string; text: string; at: number };
+
+const Moderator = actor("Moderator", {
+  state: {},
+  errors: { BannedWords: {} as { reason: string } },
   handle: {
-    Increment: async ({ by }: { by: number }, { state }) => {
-      state.count += by;          // durable: committed when the handler succeeds
-      return { count: state.count };
+    Review: async ({ text }: { text: string }, { fail }) => {
+      if (text.includes("spam")) {
+        throw fail.BannedWords({ reason: "no spam allowed" });
+      }
     },
+  },
+});
+
+export const ChatRoom = actor("ChatRoom", {
+  state: {
+    name: "",
+    members: [] as Member[],
+    messages: [] as ChatMessage[],
+  },
+  events: {
+    memberJoined: {} as { member: Member },
+    memberLeft: {} as { name: string },
+    newMessage: {} as ChatMessage,
+  },
+  errors: {
+    MemberNotInRoom: {} as { member: string },
+  },
+  handle: {
+    Initialize: async ({ name }: { name: string }, { state }) => {
+      if (!state.name) state.name = name;
+    },
+
+    Join: async ({ name }: { name: string }, { state, emit, self }) => {
+      const member = { name, joinedAt: Date.now() };
+      state.members.push(member);
+      emit.memberJoined({ member });
+      self.after(250).SendMessage({
+        sender: "Admin",
+        text: `Welcome, ${name}!`,
+      });
+      return { memberCount: state.members.length };
+    },
+
+    Leave: async ({ name }: { name: string }, { state, emit, fail }) => {
+      if (!state.members.some((m) => m.name === name)) {
+        throw fail.MemberNotInRoom({ member: name });
+      }
+      state.members = state.members.filter((m) => m.name !== name);
+      emit.memberLeft({ name });
+    },
+
+    SendMessage: async (
+      message: { sender: string; text: string },
+      { state, actors, emit, fail },
+    ) => {
+      const isAdmin = message.sender === "Admin";
+      if (!isAdmin && !state.members.some((m) => m.name === message.sender)) {
+        throw fail.MemberNotInRoom({ member: message.sender });
+      }
+      await actors(Moderator).getOrCreate("main").Review({ text: message.text });
+      const chatMessage = { ...message, at: Date.now() };
+      state.messages.push(chatMessage);
+      emit.newMessage(chatMessage);
+    },
+
+    GetHistory: async (_: void, { state }) => state.messages,
   },
 });
 ```
 
-That is a durable, addressable, one-message-at-a-time actor. No `Effect.gen`, no `Layer`, no `yield*` — Effect is the implementation substrate underneath, not your cognitive burden. 
+The shape is the point: define an actor, give it durable state, and describe its handlers in ordinary async TypeScript. Messages to one actor instance run one at a time. State changes commit only when a handler succeeds. Effect is still underneath, but it is the implementation substrate, not a second language you have to carry in your head.
 
-**The flagship comparison**: Rivet's launch-post chat room is 551 lines across 8 files in the raw Effect idiom; the same app on stagecraft is ~90 lines in one file ([`examples/chat.ts`](examples/chat.ts)) with zero Effect syntax in user code. Same engine, same wire format, same durability.
+Rivet's original launch-post chat room is 551 lines across 8 files in the raw Effect idiom. The same application is about 90 lines in one file ([`examples/chat.ts`](examples/chat.ts)) with zero Effect syntax in user code. Same engine, same wire format, same durability.
 
 ---
 

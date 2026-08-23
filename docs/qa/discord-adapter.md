@@ -50,12 +50,12 @@ bun run demo --discord
 Checklist:
 
 - [ ] Startup prints `Discord alerts on` — the adapter attached.
-- [ ] Two-key negative cases: `bun run demo --discord` with the env var unset or garbled dies at boot (exit 1) with a message naming the flag and the var — and never echoing the URL value; `bun run demo` without the flag ignores the env var entirely.
+- [ ] Two-key negative cases: `bun run demo --discord` with the env var unset or invalid dies at boot (exit 1) with a message naming the flag and the var — and never echoing the URL value; `bun run demo` without the flag ignores the env var entirely.
 - [ ] Within a few rounds, a **🆕 New issue** embed lands in the channel: red/amber embed border, `Referee.Play` title, then formatted code blocks for `payload`, `state`, and `stack`.
 - [ ] Around round 7, a **second, different issue** arrives (the lowercase `WinRate` call). Recurrences of either issue must **not** post — watch the panel counts climb at `http://localhost:4949` while Discord stays quiet.
 - [ ] In the panel, click **Resolve** on the draw issue, wait a few rounds: a **🔥 REGRESSION** embed arrives with the updated status.
 - [ ] Mallory's declared error (every 5th round) never reaches Discord — declared errors are contract, not incidents.
-- [ ] Kill the demo, edit `.env.local` to a garbage URL, rerun: stderr shows `[monitor] alert adapter failed: … HTTP 4xx` and the demo keeps running — a broken sink must never take the process down or mask stdout alerts.
+- [ ] Stop the demo, replace the webhook with a syntactically valid but non-working URL, and rerun: stderr shows `[monitor] alert adapter failed: … HTTP 4xx` and the demo keeps running — a broken sink must never take the process down or mask stdout alerts.
 
 ## Part 4 — Automated coverage
 
