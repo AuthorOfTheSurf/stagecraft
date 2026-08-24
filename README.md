@@ -131,6 +131,7 @@ More exhibits live in [`examples/`](examples/): a durable AI agent session with 
 | **Typed Error Channels** | Declare domain errors with payload schemas; throw with `fail.X()` | Mapped to `Schema.TaggedErrorClass` dynamically; propagates typed across actor boundaries |
 | **Durable Timers (`schedule.after`)** | Schedule delayed messages: `const timerId = await schedule.after(ms).Action(payload)` | Backed by Rivet engine's durable scheduler (`schedule.after`), surviving reboots; hands back the scheduler's timer id |
 | **Timer Cancellation (`schedule.cancel`)** | Revoke a scheduled timer: `await schedule.cancel(timerId)` | Delegates to `schedule.cancel`; `false` means already fired or unknown. Keep a state guard in the handler as the backstop for a fire already in flight |
+| **Internal Handlers (`internal`)** | Scheduled-only steps clients can't call: drip sends, expiry sweeps, work loops | Never registered as wire actions; timers reach them through a dispatcher guarded by a proof in the actor's durable kv. Forgeries reject typed (`isInternalOnly`) |
 | **Realtime Client Broadcast (`emit`)** | Broadcast events to connected clients: `emit.memberJoined(...)` | Routed through `rawRivetkitContext.broadcast()` |
 | **Direct Actor-to-Actor Routing (`actors`)** | Call other actors with full autocomplete: `actors(Mod).getOrCreate(k).Review(p)` | Uses action-level Effect context to create and invoke typed client proxies |
 | **Explicit Teardown (`destroy`)** | Cleanly terminate an actor instance when work is done | Invokes `rawRivetkitContext.destroy()` |

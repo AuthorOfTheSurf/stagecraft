@@ -54,28 +54,6 @@ export const DripCampaign = actor("DripCampaign", {
       return { scheduled: steps.length };
     },
 
-    // Unsubscribe cancels the parked timer, so a fire normally means the
-    // send is genuinely due. The state re-check stays as the backstop for
-    // a fire already in flight when the cancel landed.
-    SendStep: async ({ index }: { index: number }, { state, emit, schedule }) => {
-      if (state.status !== "active" || index !== state.nextIndex) {
-        return;
-      }
-      const step = state.steps[index]!;
-      deliver(state.email, step.subject);
-      state.sent.push({ subject: step.subject, at: Date.now() });
-      emit.emailSent({ subject: step.subject, index });
-      state.nextIndex++;
-      const next = state.steps[state.nextIndex];
-      if (next) {
-        state.nextTimerId = await schedule.after(next.afterMs).SendStep({ index: state.nextIndex });
-      } else {
-        state.nextTimerId = "";
-        state.status = "completed";
-        emit.sequenceCompleted({ sent: state.sent.length });
-      }
-    },
-
     Unsubscribe: async (_: void, { state, emit, schedule, fail }) => {
       if (state.status !== "active") {
         throw fail.NotSubscribed({});
@@ -95,5 +73,30 @@ export const DripCampaign = actor("DripCampaign", {
       sent: state.sent,
       remaining: state.steps.length - state.nextIndex,
     }),
+  },
+
+  // Only the timer may deliver a send — internal handlers are unreachable by
+  // clients, so nobody can call SendStep to jump the sequence. Unsubscribe
+  // cancels the parked timer; the state re-check stays as the backstop for a
+  // fire already in flight when the cancel landed.
+  internal: {
+    SendStep: async ({ index }: { index: number }, { state, emit, schedule }) => {
+      if (state.status !== "active" || index !== state.nextIndex) {
+        return;
+      }
+      const step = state.steps[index]!;
+      deliver(state.email, step.subject);
+      state.sent.push({ subject: step.subject, at: Date.now() });
+      emit.emailSent({ subject: step.subject, index });
+      state.nextIndex++;
+      const next = state.steps[state.nextIndex];
+      if (next) {
+        state.nextTimerId = await schedule.after(next.afterMs).SendStep({ index: state.nextIndex });
+      } else {
+        state.nextTimerId = "";
+        state.status = "completed";
+        emit.sequenceCompleted({ sent: state.sent.length });
+      }
+    },
   },
 });

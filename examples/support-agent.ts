@@ -155,9 +155,16 @@ export const SupportAgent = actor("SupportAgent", {
       emit.approvalResolved({ id, outcome: "denied" });
     },
 
-    // Resolved approvals cancel their timer, so this normally fires only for
-    // a genuinely unanswered request. The id check stays as the backstop for
-    // a fire already in flight when the cancel landed.
+    GetTranscript: async (_: void, { state }) => state.messages,
+    GetPending: async (_: void, { state }) => state.pending,
+  },
+
+  // Only the expiry timer may expire an approval — internal handlers are
+  // unreachable by clients, so nobody can force an expiry from outside.
+  // Resolved approvals cancel their timer, so this normally fires only for
+  // a genuinely unanswered request; the id check stays as the backstop for
+  // a fire already in flight when the cancel landed.
+  internal: {
     ExpireApproval: async ({ id }: { id: string }, { state, emit }) => {
       if (!state.pending || state.pending.id !== id) {
         return;
@@ -172,8 +179,5 @@ export const SupportAgent = actor("SupportAgent", {
       emit.reply(reply);
       emit.approvalResolved({ id, outcome: "expired" });
     },
-
-    GetTranscript: async (_: void, { state }) => state.messages,
-    GetPending: async (_: void, { state }) => state.pending,
   },
 });

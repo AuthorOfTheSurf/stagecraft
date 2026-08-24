@@ -60,16 +60,27 @@ export const CsvImporter = actor("CsvImporter", {
         throw fail.NothingToImport({});
       }
       state.status = "running";
-      schedule.after(0).Work();
+      await schedule.after(0).Work();
       return { total: state.lines.length };
     },
 
-    // One chunk per message. The cursor commits with the chunk, so replayed
-    // or resumed work never double-imports a committed row.
+    GetStatus: async (_: void, { state }) => ({
+      status: state.status,
+      processed: state.cursor,
+      total: state.lines.length,
+      imported: state.imported,
+      errors: state.errors,
+    }),
+  },
+
+  // Only the loop's own timer may drive the work — internal handlers are
+  // unreachable by clients. One chunk per message; the cursor commits with
+  // the chunk, so replayed or resumed work never double-imports a row.
+  internal: {
     Work: async (_: void, { state, emit, schedule }) => {
       if (state.status !== "running") {
-        return;
-      } // stale timer after completion
+        return; // stale timer after completion
+      }
       const end = Math.min(state.cursor + CHUNK_SIZE, state.lines.length);
       for (; state.cursor < end; state.cursor++) {
         const raw = state.lines[state.cursor]!;
@@ -91,7 +102,7 @@ export const CsvImporter = actor("CsvImporter", {
         failed: state.errors.length,
       });
       if (state.cursor < state.lines.length) {
-        schedule.after(0).Work();
+        await schedule.after(0).Work();
       } else {
         state.status = "done";
         emit.completed({
@@ -101,13 +112,5 @@ export const CsvImporter = actor("CsvImporter", {
         });
       }
     },
-
-    GetStatus: async (_: void, { state }) => ({
-      status: state.status,
-      processed: state.cursor,
-      total: state.lines.length,
-      imported: state.imported,
-      errors: state.errors,
-    }),
   },
 });
