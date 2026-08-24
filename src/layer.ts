@@ -177,6 +177,15 @@ errorClasses.set(
   class extends Schema.TaggedErrorClass<any>()(INTERNAL_ONLY, { data: Schema.Any }) {},
 );
 
+// The framework's own error tags share one registry with declared errors, so
+// a domain error reusing either name would silently inherit the built-in
+// class and make isUnexpected/isInternalOnly report it as a framework
+// rejection. Reject the collision where it is written instead.
+const RESERVED_ERROR_NAMES = new Set([UNEXPECTED, INTERNAL_ONLY]);
+
+const hasOwn = (o: any, k: string) =>
+  typeof o === "object" && o !== null && Object.prototype.hasOwnProperty.call(o, k);
+
 /** True when a call was rejected because the action is scheduled-only. */
 export const isInternalOnly = (
   e: unknown,
@@ -243,6 +252,12 @@ export function actor<
     throw new Error(`actor ${name}: "${SCHEDULED}" is a reserved action name`);
   }
   for (const tag of Object.keys(config.errors ?? {})) {
+    if (RESERVED_ERROR_NAMES.has(tag)) {
+      throw new Error(
+        `actor ${name}: "${tag}" is a reserved error name — stagecraft raises it ` +
+          `itself and isUnexpected/isInternalOnly test for it. Rename the error.`,
+      );
+    }
     if (!errorClasses.has(tag)) {
       errorClasses.set(
         tag,
@@ -306,14 +321,29 @@ export function actor<
       // can never read it, and it survives sleep/restart alongside the timers
       // that carry it.
       const getProof = (): Promise<string | null> => rawRivetkitContext.kv.get(PROOF_KEY);
-      const ensureProof = async (): Promise<string> => {
-        const existing = await getProof();
-        if (existing) {
-          return existing;
+      // Minting is read-then-write, so two schedule calls racing on a cold
+      // actor would each see an empty key, mint different proofs, and the
+      // loser's timers would later be rejected as InternalOnly — legitimate
+      // work silently lost. One in-flight promise per instance makes the
+      // read-write pair atomic; a failed mint clears it so the next call
+      // retries rather than caching the rejection.
+      let minting: Promise<string> | null = null;
+      const ensureProof = (): Promise<string> => {
+        if (!minting) {
+          minting = (async () => {
+            const existing = await getProof();
+            if (existing) {
+              return existing;
+            }
+            const minted = crypto.randomUUID();
+            await rawRivetkitContext.kv.put(PROOF_KEY, minted);
+            return minted;
+          })();
+          minting.catch(() => {
+            minting = null;
+          });
         }
-        const minted = crypto.randomUUID();
-        await rawRivetkitContext.kv.put(PROOF_KEY, minted);
-        return minted;
+        return minting;
       };
       const makeCtx = (
         draft: S,
@@ -329,7 +359,7 @@ export function actor<
               {},
               {
                 get: (_, action: string) => async (payload?: any) => {
-                  if (config.internal && action in config.internal) {
+                  if (hasOwn(config.internal, action)) {
                     const proof = await ensureProof();
                     return rawRivetkitContext.schedule.after(ms, SCHEDULED, {
                       tag: action,
@@ -370,10 +400,22 @@ export function actor<
               try: () =>
                 serialize(async () => {
                   const t0 = Date.now();
+                  // The dispatcher's `tag` arrives on the wire, so a forged
+                  // call can put any string there. Echo it only once it is
+                  // known to name a declared internal handler — otherwise the
+                  // dispatcher reports under its own name and attacker text
+                  // never reaches the activity feed, reports, or the panel.
+                  // (Own-property lookup: `in` would match Object.prototype
+                  // keys like "constructor" and hand back a stray function.)
+                  const target =
+                    tag === SCHEDULED && typeof payload?.tag === "string"
+                      ? hasOwn(config.internal, payload.tag)
+                        ? config.internal![payload.tag]
+                        : undefined
+                      : undefined;
                   // The dispatcher reports as the internal handler it carries,
                   // so the panel and reports stay legible.
-                  let label =
-                    tag === SCHEDULED && typeof payload?.tag === "string" ? payload.tag : tag;
+                  const label = target ? (payload.tag as string) : tag;
                   const activity = (outcome: ActivityEvent["outcome"]) =>
                     notifyActivity({
                       actor: name,
@@ -386,7 +428,6 @@ export function actor<
                   let fn: any = config.handle[tag];
                   if (tag === SCHEDULED) {
                     const expected = await getProof();
-                    const target = config.internal?.[payload?.tag as string];
                     if (!target || !expected || payload?.__proof !== expected) {
                       activity("declared-error");
                       const Cls = errorClasses.get(INTERNAL_ONLY)!;

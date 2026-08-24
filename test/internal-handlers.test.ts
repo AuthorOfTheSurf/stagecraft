@@ -9,7 +9,8 @@
 import { afterAll, expect, test } from "bun:test";
 import { Effect, Result } from "effect";
 import { DripCampaign } from "../examples/drip-campaign.ts";
-import { engine, release, retain } from "./test-harness.ts";
+import { actor, onActivity } from "../src/index.ts";
+import { engine, ProofLab, release, retain } from "./test-harness.ts";
 
 retain();
 afterAll(() => release());
@@ -71,3 +72,75 @@ test(
   },
   TIMEOUT,
 );
+
+test(
+  "concurrently armed internal timers all fire — the proof is minted once",
+  async () => {
+    const lab = engine.client(ProofLab).getOrCreate(fresh("proof-race"));
+    // A cold instance: nothing has minted the proof yet, so all five schedule
+    // calls hit the read-then-write together.
+    const ids = await lab.ArmMany({ n: 5, ms: 300 });
+    expect(new Set(ids as string[]).size).toBe(5);
+
+    await new Promise((r) => setTimeout(r, 3_000));
+    const ticks = (await lab.GetTicks()) as number[];
+    expect([...ticks].sort()).toEqual([0, 1, 2, 3, 4]);
+  },
+  TIMEOUT,
+);
+
+test(
+  "a forged dispatcher tag never reaches the activity feed",
+  async () => {
+    const key = fresh("drip-injection");
+    const drip = engine.client(DripCampaign).getOrCreate(key);
+    await drip.Subscribe({
+      email: "eve@example.com",
+      steps: [{ afterMs: 60_000, subject: "Welcome" }],
+    });
+
+    // The panel renders ActivityEvent.action; a tag that is not a declared
+    // internal handler is attacker-supplied text and must be dropped, not
+    // labelled with.
+    const payload = "<img src=x onerror=alert(1)>";
+    const seen: string[] = [];
+    const stop = onActivity((ev) => {
+      if (ev.key === key) {
+        seen.push(ev.action);
+      }
+    });
+    try {
+      const forged = await engine.run(
+        Effect.flatMap(DripCampaign.contract.client as any, (accessor: any) =>
+          Effect.result(
+            accessor.getOrCreate(key).__scheduled({
+              tag: payload,
+              data: {},
+              __proof: "not-the-real-proof",
+            }),
+          ),
+        ),
+      );
+      expect(Result.isFailure(forged as any)).toBe(true);
+      expect((forged as any).failure._tag).toBe("InternalOnly");
+    } finally {
+      stop();
+    }
+
+    expect(seen).toContain("__scheduled");
+    expect(seen.join("|")).not.toContain("<img");
+    expect((await drip.GetStatus()).sent).toEqual([]);
+  },
+  TIMEOUT,
+);
+
+test("a declared error cannot reuse a framework error name", () => {
+  const build = (name: string) =>
+    actor(`reserved-${name}`, {
+      state: {},
+      errors: { [name]: {} as Record<string, never> },
+      handle: { Noop: async () => undefined },
+    });
+  expect(() => build("InternalOnly")).toThrow(/reserved error name/);
+  expect(() => build("UnexpectedError")).toThrow(/reserved error name/);
+});

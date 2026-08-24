@@ -58,6 +58,25 @@ export const TimerLab = actor("timer-lab", {
   },
 });
 
+// Test-only actor: arms several internal timers concurrently from a cold
+// instance, so the dispatch proof gets minted under a race. Every armed tick
+// must land — a proof minted twice leaves all but one timer rejected as
+// InternalOnly, losing legitimate work silently.
+export const ProofLab = actor("proof-lab", {
+  state: { ticks: [] as number[] },
+  errors: {},
+  handle: {
+    ArmMany: async ({ n, ms }: { n: number; ms: number }, { schedule }) =>
+      Promise.all(Array.from({ length: n }, (_, i) => schedule.after(ms).Tick({ i }))),
+    GetTicks: async (_: void, { state }) => state.ticks,
+  },
+  internal: {
+    Tick: async ({ i }: { i: number }, { state }) => {
+      state.ticks.push(i);
+    },
+  },
+});
+
 reapOrphanEngines(); // a stranded engine from a prior run poisons this one
 export const engine = testEngine(
   ChatRoom,
@@ -69,6 +88,7 @@ export const engine = testEngine(
   CsvImporter,
   DripCampaign,
   TimerLab,
+  ProofLab,
 );
 
 // bun loads test files one at a time, so a per-suite refcount would hit

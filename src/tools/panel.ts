@@ -190,13 +190,18 @@ const PAGE = `<!doctype html>
   const issuesBody = document.getElementById("issues");
   const reportsEl = document.getElementById("reports");
   const when = (t) => new Date(t).toLocaleTimeString();
+  // Actor names, instance keys, and action labels are text the feed carries,
+  // never markup — escape every one before it reaches innerHTML so no value
+  // can open a tag or break out of an attribute.
+  const ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ESC[c]);
   // Restart the amber tick animation even if it's still mid-fade.
   const flash = (el) => { el.classList.remove("tick"); void el.offsetWidth; el.classList.add("tick"); };
 
   // "takeTurn 12\u00d7, tune 1\u00d7" — busiest action first.
   const tallyText = (tally) => Object.entries(tally || {})
     .sort((a, b) => b[1] - a[1])
-    .map(([action, n]) => action + " " + n + "\u00d7")
+    .map(([action, n]) => esc(action) + " " + esc(n) + "\u00d7")
     .join(", ");
 
   function renderActors() {
@@ -206,11 +211,11 @@ const PAGE = `<!doctype html>
       const quiet = age > QUIET_MS;
       const row = document.createElement("tr");
       row.innerHTML =
-        "<td>" + ev.actor + (quiet ? " <span class=quiet>● QUIET</span>" : " <span class=ok>●</span>") + "</td>" +
-        "<td>" + (ev.key || "\u2014") + "</td>" +
-        "<td>" + ev.action + "</td>" +
-        "<td class=" + ev.outcome + ">" + ev.outcome + "</td>" +
-        "<td>" + ev.ms + "ms</td>" +
+        "<td>" + esc(ev.actor) + (quiet ? " <span class=quiet>● QUIET</span>" : " <span class=ok>●</span>") + "</td>" +
+        "<td>" + (esc(ev.key) || "\u2014") + "</td>" +
+        "<td>" + esc(ev.action) + "</td>" +
+        "<td class=\"" + esc(ev.outcome) + "\">" + esc(ev.outcome) + "</td>" +
+        "<td>" + esc(ev.ms) + "ms</td>" +
         "<td>" + Math.round(age / 1000) + "s ago</td>" +
         "<td>" + tallyText(ev.tally) + "</td>";
       tbody.appendChild(row);

@@ -150,6 +150,10 @@ export const DripCampaign = actor("DripCampaign", {
 
 Internal handlers never become wire actions — a client cannot even address them. Scheduling one routes through a guarded dispatcher carrying a proof from the actor's durable kv, which no client can read; a forged call is rejected with the typed `InternalOnly` error (`isInternalOnly(e)`). Still keep the state re-check inside the handler — it remains the backstop for a stale fire (see the cancellation section above).
 
+Two names the framework owns, so `errors` cannot declare them: **`InternalOnly`** and **`UnexpectedError`**. Both are raised by stagecraft itself and tested for by `isInternalOnly` / `isUnexpected`, so a domain error reusing either name would be misreported as a framework rejection. Declaring one throws at definition time.
+
+A forged dispatcher call also carries an arbitrary `tag`. It is used as the reported action name only once it is known to match a declared internal handler; anything else reports as `__scheduled`, so wire text never reaches the activity feed, the reports, or the panel.
+
 ### How to Chain Work on Yourself:
 1. **Same transaction (synchronous)**: Call a plain JavaScript/TypeScript helper function directly:
    ```ts
