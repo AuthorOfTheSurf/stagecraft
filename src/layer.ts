@@ -165,6 +165,24 @@ errorClasses.set(
   class extends Schema.TaggedErrorClass<any>()(UNEXPECTED, { data: Schema.Any }) {},
 );
 
+// Internal (scheduled-only) handlers never become wire actions. They dispatch
+// through this one guarded action, whose payload must carry the proof the
+// actor minted into its own durable kv — a value no client can read. A call
+// without the proof is rejected typed, before any handler code runs.
+const SCHEDULED = "__scheduled";
+const PROOF_KEY = "stagecraft:internal-proof";
+const INTERNAL_ONLY = "InternalOnly";
+errorClasses.set(
+  INTERNAL_ONLY,
+  class extends Schema.TaggedErrorClass<any>()(INTERNAL_ONLY, { data: Schema.Any }) {},
+);
+
+/** True when a call was rejected because the action is scheduled-only. */
+export const isInternalOnly = (
+  e: unknown,
+): e is Error & { _tag: typeof INTERNAL_ONLY; actor: string; action: string } =>
+  typeof e === "object" && e !== null && (e as any)._tag === INTERNAL_ONLY;
+
 export const isUnexpected = (
   e: unknown,
 ): e is Error & {
@@ -201,8 +219,29 @@ export function actor<
   H extends Record<string, (payload: any, ctx: Ctx<S, Ev, Er>) => any>,
 >(
   name: string,
-  config: { state: S; events?: Ev; errors?: Er; handle: H; options?: RuntimeOptions },
+  config: {
+    state: S;
+    events?: Ev;
+    errors?: Er;
+    handle: H;
+    /**
+     * Scheduled-only handlers: reachable via `schedule.after(ms).X(p)` but
+     * never exposed as client-callable actions. Use for steps only a timer
+     * should drive (drip sends, expiry sweeps, work loops).
+     */
+    internal?: Record<string, (payload: any, ctx: Ctx<S, Ev, Er>) => any>;
+    options?: RuntimeOptions;
+  },
 ): ActorDef<S, Ev, Er, H> {
+  const internalNames = Object.keys(config.internal ?? {});
+  for (const tag of internalNames) {
+    if (tag in config.handle) {
+      throw new Error(`actor ${name}: "${tag}" is declared in both handle and internal`);
+    }
+  }
+  if (SCHEDULED in config.handle) {
+    throw new Error(`actor ${name}: "${SCHEDULED}" is a reserved action name`);
+  }
   for (const tag of Object.keys(config.errors ?? {})) {
     if (!errorClasses.has(tag)) {
       errorClasses.set(
@@ -213,10 +252,16 @@ export function actor<
   }
 
   const actionNames = Object.keys(config.handle);
-  const actions = actionNames.map((tag) => {
+  // Internal handlers ride the one dispatcher action; their own names never
+  // reach the wire, so a client cannot even address them.
+  const wireNames = internalNames.length > 0 ? [...actionNames, SCHEDULED] : actionNames;
+  const actions = wireNames.map((tag) => {
     const err = errorUnion();
     return Action.make(tag, {
-      payload: { data: Schema.Any },
+      payload:
+        tag === SCHEDULED
+          ? { tag: Schema.Any, data: Schema.Any, __proof: Schema.Any }
+          : { data: Schema.Any },
       success: Schema.Any,
       ...(err ? { error: err } : {}),
     });
@@ -257,6 +302,19 @@ export function actor<
         chain = next.catch(() => undefined);
         return next;
       };
+      // The internal-dispatch proof lives in the actor's durable kv — clients
+      // can never read it, and it survives sleep/restart alongside the timers
+      // that carry it.
+      const getProof = (): Promise<string | null> => rawRivetkitContext.kv.get(PROOF_KEY);
+      const ensureProof = async (): Promise<string> => {
+        const existing = await getProof();
+        if (existing) {
+          return existing;
+        }
+        const minted = crypto.randomUUID();
+        await rawRivetkitContext.kv.put(PROOF_KEY, minted);
+        return minted;
+      };
       const makeCtx = (
         draft: S,
         run: <A>(e: Effect.Effect<A, any, any>) => Promise<A>,
@@ -270,8 +328,17 @@ export function actor<
             new Proxy(
               {},
               {
-                get: (_, action: string) => (payload?: any) =>
-                  rawRivetkitContext.schedule.after(ms, action, { data: payload }),
+                get: (_, action: string) => async (payload?: any) => {
+                  if (config.internal && action in config.internal) {
+                    const proof = await ensureProof();
+                    return rawRivetkitContext.schedule.after(ms, SCHEDULED, {
+                      tag: action,
+                      data: payload,
+                      __proof: proof,
+                    });
+                  }
+                  return rawRivetkitContext.schedule.after(ms, action, { data: payload });
+                },
               },
             ),
           cancel: (timerId: string) => rawRivetkitContext.schedule.cancel(timerId),
@@ -295,7 +362,7 @@ export function actor<
       });
 
       const handlers: any = {};
-      for (const tag of actionNames) {
+      for (const tag of wireNames) {
         handlers[tag] = ({ payload }: any) =>
           Effect.flatMap(Effect.context<never>(), (actionContext) => {
             const run = Effect.runPromiseWith(actionContext);
@@ -303,20 +370,41 @@ export function actor<
               try: () =>
                 serialize(async () => {
                   const t0 = Date.now();
+                  // The dispatcher reports as the internal handler it carries,
+                  // so the panel and reports stay legible.
+                  let label =
+                    tag === SCHEDULED && typeof payload?.tag === "string" ? payload.tag : tag;
                   const activity = (outcome: ActivityEvent["outcome"]) =>
                     notifyActivity({
                       actor: name,
                       key: instanceKey,
-                      action: tag,
+                      action: label,
                       outcome,
                       ms: Date.now() - t0,
                       at: Date.now(),
                     });
+                  let fn: any = config.handle[tag];
+                  if (tag === SCHEDULED) {
+                    const expected = await getProof();
+                    const target = config.internal?.[payload?.tag as string];
+                    if (!target || !expected || payload?.__proof !== expected) {
+                      activity("declared-error");
+                      const Cls = errorClasses.get(INTERNAL_ONLY)!;
+                      throw new Cls({
+                        data: {
+                          actor: name,
+                          action: label,
+                          reason: "this action is scheduled-only; clients cannot call it",
+                        },
+                      });
+                    }
+                    fn = target;
+                  }
                   const current = await run(state.get.pipe(Effect.orDie));
                   const draft = JSON.parse(JSON.stringify(current ?? {})) as S;
                   let result: unknown;
                   try {
-                    result = await config.handle[tag]!(payload?.data, makeCtx(draft, run as any));
+                    result = await fn(payload?.data, makeCtx(draft, run as any));
                   } catch (e) {
                     if (isDeclaredError(e)) {
                       activity("declared-error");
@@ -327,7 +415,7 @@ export function actor<
                       reportId: crypto.randomUUID(),
                       actor: name,
                       key: instanceKey,
-                      action: tag,
+                      action: label,
                       payload: payload?.data,
                       state: current,
                       error: { name: err.name, message: err.message, stack: err.stack },
@@ -346,7 +434,7 @@ export function actor<
                       data: {
                         reportId: report.reportId,
                         actor: name,
-                        action: tag,
+                        action: label,
                         message: err.message,
                       },
                     });
