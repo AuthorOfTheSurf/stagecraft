@@ -1,6 +1,6 @@
 /**
- * Timer cancellation, proven by behavior (stagecraft#33): self.after hands
- * back a durable timer id, self.cancel revokes a live timer so it never
+ * Timer cancellation, proven by behavior (stagecraft#33): schedule.after hands
+ * back a durable timer id, schedule.cancel revokes a live timer so it never
  * fires, and every stale form of cancel — double, unknown id, after the
  * fire — reports false instead of throwing.
  */

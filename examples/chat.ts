@@ -38,11 +38,11 @@ export const ChatRoom = actor("ChatRoom", {
       if (!state.name) state.name = name;
     },
 
-    Join: async ({ name }: { name: string }, { state, emit, self }) => {
+    Join: async ({ name }: { name: string }, { state, emit, schedule }) => {
       const member = { name, joinedAt: Date.now() };
       state.members.push(member);
       emit.memberJoined({ member });
-      self.after(250).SendMessage({ sender: "Admin", text: `Welcome, ${name}!` });
+      schedule.after(250).SendMessage({ sender: "Admin", text: `Welcome, ${name}!` });
       return { memberCount: state.members.length };
     },
 

@@ -2,7 +2,7 @@
  * A per-subscriber drip sequence — one actor per subscriber, each carrying
  * its own durable clock. This is the workload where cron + database gets
  * ugly (thousands of independent per-entity timers) and an actor is the
- * honest shape: `self.after(step.afterMs)` schedules the next send, the
+ * honest shape: `schedule.after(step.afterMs)` schedules the next send, the
  * schedule survives restarts, and Unsubscribe cancels the parked timer
  * (with a state guard as the backstop for a fire already in flight). The
  * delivery call (`deliver`) is a stand-in for Resend/SES; swap it without
@@ -39,21 +39,21 @@ export const DripCampaign = actor("DripCampaign", {
   handle: {
     Subscribe: async (
       { email, steps }: { email: string; steps: DripStep[] },
-      { state, self, fail },
+      { state, schedule, fail },
     ) => {
       if (state.status !== "idle") throw fail.AlreadySubscribed({ email: state.email });
       if (steps.length === 0) throw fail.EmptySequence({});
       state.email = email;
       state.steps = steps;
       state.status = "active";
-      state.nextTimerId = await self.after(steps[0]!.afterMs).SendStep({ index: 0 });
+      state.nextTimerId = await schedule.after(steps[0]!.afterMs).SendStep({ index: 0 });
       return { scheduled: steps.length };
     },
 
     // Unsubscribe cancels the parked timer, so a fire normally means the
     // send is genuinely due. The state re-check stays as the backstop for
     // a fire already in flight when the cancel landed.
-    SendStep: async ({ index }: { index: number }, { state, emit, self }) => {
+    SendStep: async ({ index }: { index: number }, { state, emit, schedule }) => {
       if (state.status !== "active" || index !== state.nextIndex) return;
       const step = state.steps[index]!;
       deliver(state.email, step.subject);
@@ -62,7 +62,7 @@ export const DripCampaign = actor("DripCampaign", {
       state.nextIndex++;
       const next = state.steps[state.nextIndex];
       if (next) {
-        state.nextTimerId = await self.after(next.afterMs).SendStep({ index: state.nextIndex });
+        state.nextTimerId = await schedule.after(next.afterMs).SendStep({ index: state.nextIndex });
       } else {
         state.nextTimerId = "";
         state.status = "completed";
@@ -70,9 +70,9 @@ export const DripCampaign = actor("DripCampaign", {
       }
     },
 
-    Unsubscribe: async (_: void, { state, emit, self, fail }) => {
+    Unsubscribe: async (_: void, { state, emit, schedule, fail }) => {
       if (state.status !== "active") throw fail.NotSubscribed({});
-      if (state.nextTimerId) await self.cancel(state.nextTimerId);
+      if (state.nextTimerId) await schedule.cancel(state.nextTimerId);
       state.nextTimerId = "";
       state.status = "unsubscribed";
       emit.unsubscribed({ email: state.email });

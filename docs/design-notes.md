@@ -10,7 +10,7 @@ The design requirements, in one breath: match the actor mental model (messages, 
 
 ## The four levels
 
-- **Level 0** (what you see in `chat.ts`): plain async handlers, payload types on the signature, `throw fail.X()`, mutable state draft committed only on success, typed `emit` / `self.after(ms)` / `actors()`. One handler at a time per instance — the actor model's actual promise, delivered.
+- **Level 0** (what you see in `chat.ts`): plain async handlers, payload types on the signature, `throw fail.X()`, mutable state draft committed only on success, typed `emit` / `schedule.after(ms)` / `actors()`. One handler at a time per instance — the actor model's actual promise, delivered.
 - **Level 1**: opt into declared schemas for wire validation and a standalone client contract.
 - **Level 2**: declare resources/services (Effect's dependency channel) — typed in the handler context, swappable in tests. Still no Effect syntax.
 - **Level 3**: drop down to raw `Effect` / `@rivetkit/effect`. Every level is real Effect underneath, so climbing never means rewriting.

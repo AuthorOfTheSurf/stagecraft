@@ -1,7 +1,7 @@
 /**
  * A durable AI agent session with a human in the loop — one actor per
  * conversation. The transcript and any parked approval live in actor state,
- * so the session survives restarts; `self.after` is the approval-expiry
+ * so the session survives restarts; `schedule.after` is the approval-expiry
  * clock. The model call is a deterministic stand-in (`decide`) so the
  * exhibit runs offline — in a real app that function is your streamText /
  * Claude call, and the actor around it does not change.
@@ -70,7 +70,7 @@ export const SupportAgent = actor("SupportAgent", {
       state.approvalTtlMs = approvalTtlMs;
     },
 
-    UserMessage: async ({ text }: { text: string }, { state, emit, self, fail }) => {
+    UserMessage: async ({ text }: { text: string }, { state, emit, schedule, fail }) => {
       if (state.pending) throw fail.ApprovalPending({ id: state.pending.id });
       state.messages.push({ role: "user", text, at: Date.now() });
 
@@ -82,7 +82,7 @@ export const SupportAgent = actor("SupportAgent", {
 
       if (action.kind === "refund") {
         const id = `approval-${state.nextApprovalId++}`;
-        const timerId = await self.after(state.approvalTtlMs).ExpireApproval({ id });
+        const timerId = await schedule.after(state.approvalTtlMs).ExpireApproval({ id });
         state.pending = {
           id,
           tool: "refundOrder",
@@ -113,9 +113,9 @@ export const SupportAgent = actor("SupportAgent", {
       return { awaitingApproval: null };
     },
 
-    Approve: async ({ id }: { id: string }, { state, emit, self, fail }) => {
+    Approve: async ({ id }: { id: string }, { state, emit, schedule, fail }) => {
       if (!state.pending || state.pending.id !== id) throw fail.NoSuchApproval({ id });
-      await self.cancel(state.pending.timerId);
+      await schedule.cancel(state.pending.timerId);
       const result = refundOrder(state.pending.orderId);
       state.pending = null;
       const reply: AgentMessage = { role: "agent", text: result, at: Date.now() };
@@ -124,9 +124,9 @@ export const SupportAgent = actor("SupportAgent", {
       emit.approvalResolved({ id, outcome: "approved" });
     },
 
-    Deny: async ({ id, reason }: { id: string; reason: string }, { state, emit, self, fail }) => {
+    Deny: async ({ id, reason }: { id: string; reason: string }, { state, emit, schedule, fail }) => {
       if (!state.pending || state.pending.id !== id) throw fail.NoSuchApproval({ id });
-      await self.cancel(state.pending.timerId);
+      await schedule.cancel(state.pending.timerId);
       state.pending = null;
       const reply: AgentMessage = {
         role: "agent",

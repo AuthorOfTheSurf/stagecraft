@@ -40,19 +40,19 @@ export const Slowpoke = actor("slowpoke", {
 });
 
 // Test-only actor: arms, fires, and cancels its own timers, to prove
-// self.after's returned id and self.cancel against a real scheduler.
+// schedule.after's returned id and schedule.cancel against a real scheduler.
 export const TimerLab = actor("timer-lab", {
   state: { fired: [] as string[] },
   errors: {},
   handle: {
-    Arm: async ({ ms, tag }: { ms: number; tag: string }, { self }) => ({
-      timerId: await self.after(ms).Fire({ tag }),
+    Arm: async ({ ms, tag }: { ms: number; tag: string }, { schedule }) => ({
+      timerId: await schedule.after(ms).Fire({ tag }),
     }),
     Fire: async ({ tag }: { tag: string }, { state }) => {
       state.fired.push(tag);
     },
-    Cancel: async ({ timerId }: { timerId: string }, { self }) => ({
-      cancelled: await self.cancel(timerId),
+    Cancel: async ({ timerId }: { timerId: string }, { schedule }) => ({
+      cancelled: await schedule.cancel(timerId),
     }),
     GetFired: async (_: void, { state }) => state.fired,
   },

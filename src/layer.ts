@@ -21,18 +21,23 @@ type FailOf<Er> = { [K in keyof Er]: (fields: Er[K]) => Error };
 type PayloadOf<H extends AnyHandler> = Parameters<H>[0];
 type ResultOf<H extends AnyHandler> = Awaited<ReturnType<H>>;
 
-/** What a handler receives alongside its payload. */
+/**
+ * What a handler receives alongside its payload. The rule of the surface:
+ * durable actor data lives on `state`; everything else here is a runtime
+ * capability (engine scheduling, broadcast, actor references, …).
+ */
 export interface Ctx<S, Ev, Er> {
   /** Mutable draft of durable state; committed only if the handler succeeds. */
   state: S;
   /** Typed broadcast to connected clients. */
   emit: EmitOf<Ev>;
   /**
-   * Schedule a message to this same actor: `self.after(ms).SendMessage(p)`.
-   * Returns a durable timer id — keep it in state if you may need to
-   * `self.cancel` it later; ignore it for fire-and-forget.
+   * Engine-managed durable scheduling. Delay a message to this actor:
+   * `schedule.after(ms).SendMessage(p)` — returns a durable timer id; keep
+   * it in state if you may need to `schedule.cancel` it later, ignore it
+   * for fire-and-forget.
    */
-  self: {
+  schedule: {
     after: (ms: number) => Record<string, (payload?: any) => Promise<string>>;
     /**
      * Revoke a scheduled timer. `false` means it already fired or the id is
@@ -265,7 +270,7 @@ export function actor<
           get: (_, event: string) => (payload: any) =>
             rawRivetkitContext.broadcast(event, payload),
         }),
-        self: {
+        schedule: {
           after: (ms: number) =>
             new Proxy({}, {
               get: (_, action: string) => (payload?: any) =>
