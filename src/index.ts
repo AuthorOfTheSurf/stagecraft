@@ -19,6 +19,7 @@ export {
   onUnexpected,
   onActivity,
   isUnexpected,
+  isInternalOnly,
   type Ctx,
   type ActorDef,
   type AnyActorDef,
@@ -51,4 +52,3 @@ export {
   type IssueStatus,
   type IssueTracker,
 } from "./issues.ts";
-

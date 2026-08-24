@@ -39,7 +39,7 @@ export const GameRoom = actor("GameRoom", {
 
   // 4. Action handlers (plain async functions)
   handle: {
-    Join: async ({ player }: { player: string }, { state, fail, emit, self, actors }) => {
+    Join: async ({ player }: { player: string }, { state, fail, emit, schedule, actors }) => {
       if (state.isLocked) {
         throw fail.RoomLocked({}); // ✅ Declared error
       }
@@ -54,7 +54,7 @@ export const GameRoom = actor("GameRoom", {
       emit.PlayerJoined({ player });
 
       // Schedule follow-up work on this actor in 5 seconds
-      self.after(5000).AutoStart({});
+      schedule.after(5000).AutoStart({});
 
       return { joined: true, count: state.players.length };
     },
@@ -118,6 +118,42 @@ handle: {
 }
 ```
 
+### Cancelling a Scheduled Timer:
+`schedule.after(...).Action(p)` returns a **durable timer id** (`Promise<string>`) — ignore it for fire-and-forget, or keep it in state to revoke the timer later:
+
+```ts
+// Arm: keep the id in durable state
+state.pending = { id, timerId: await schedule.after(ttlMs).Expire({ id }) };
+
+// Resolve: cancel the timer (false = already fired or unknown — harmless)
+await schedule.cancel(state.pending.timerId);
+```
+
+Cancellation is best-effort: a fire already in flight can still land, so the scheduled handler should **re-check state and no-op when stale** (see `examples/support-agent.ts` and `examples/drip-campaign.ts`). Also note: scheduling is a side effect that does NOT roll back if the handler later throws — cancel is the compensation tool.
+
+### Internal (Scheduled-Only) Handlers:
+A handler in `handle` is a **public wire action** — any client can call it. A step that only a timer should drive (a drip send, an expiry sweep, a work loop) belongs in the actor's `internal` block instead:
+
+```ts
+export const DripCampaign = actor("DripCampaign", {
+  state: { /* … */ },
+  handle: {
+    Subscribe: async (p, { state, schedule }) => {
+      await schedule.after(p.steps[0].afterMs).SendStep({ index: 0 }); // fine: internal names are schedulable
+    },
+  },
+  internal: {
+    SendStep: async ({ index }, ctx) => { /* only a timer can reach this */ },
+  },
+});
+```
+
+Internal handlers never become wire actions — a client cannot even address them. Scheduling one routes through a guarded dispatcher carrying a proof from the actor's durable kv, which no client can read; a forged call is rejected with the typed `InternalOnly` error (`isInternalOnly(e)`). Still keep the state re-check inside the handler — it remains the backstop for a stale fire (see the cancellation section above).
+
+Two names the framework owns, so `errors` cannot declare them: **`InternalOnly`** and **`UnexpectedError`**. Both are raised by stagecraft itself and tested for by `isInternalOnly` / `isUnexpected`, so a domain error reusing either name would be misreported as a framework rejection. Declaring one throws at definition time.
+
+A forged dispatcher call also carries an arbitrary `tag`. It is used as the reported action name only once it is known to match a declared internal handler; anything else reports as `__scheduled`, so wire text never reaches the activity feed, the reports, or the panel.
+
 ### How to Chain Work on Yourself:
 1. **Same transaction (synchronous)**: Call a plain JavaScript/TypeScript helper function directly:
    ```ts
@@ -125,9 +161,9 @@ handle: {
    // inside handler:
    internalUpdate(state);
    ```
-2. **Next transaction (asynchronous)**: Schedule it via `self.after(0)`:
+2. **Next transaction (asynchronous)**: Schedule it via `schedule.after(0)`:
    ```ts
-   self.after(0).ActionB({}); // Enqueued for the next turn; current handler finishes and commits.
+   schedule.after(0).ActionB({}); // Enqueued for the next turn; current handler finishes and commits.
    ```
 
 ---

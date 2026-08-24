@@ -1,6 +1,6 @@
 {
   "name": "@authorofthesurf/stagecraft",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Plain actors on Rivet: async handlers, durable state, typed errors \u2014 plus the crew: error reports, issue grouping, alert adapters, and a live monitor panel.",
   "license": "MIT",
   "author": "Zane Kansil",
@@ -41,7 +41,10 @@
     "hello": "bun src/tools/hello.ts",
     "typecheck": "tsc --noEmit",
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
-    "prepublishOnly": "bun run typecheck && bun test && bun run build"
+    "prepublishOnly": "bun run lint && bun run format:check && bun run typecheck && bun test && bun run build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@rivetkit/effect": "2.3.10",
@@ -49,6 +52,9 @@
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",
-    "typescript": "^5.9.3"
+    "eslint": "^10.9.0",
+    "prettier": "^3.9.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.67.0"
   }
 }

@@ -55,11 +55,11 @@ export const ChatRoom = actor("ChatRoom", {
       if (!state.name) state.name = name;
     },
 
-    Join: async ({ name }: { name: string }, { state, emit, self }) => {
+    Join: async ({ name }: { name: string }, { state, emit, schedule }) => {
       const member = { name, joinedAt: Date.now() };
       state.members.push(member);
       emit.memberJoined({ member });
-      self.after(250).SendMessage({
+      schedule.after(250).SendMessage({
         sender: "Admin",
         text: `Welcome, ${name}!`,
       });
@@ -97,6 +97,8 @@ The shape is the point: define an actor, give it durable state, and describe its
 
 Rivet's original launch-post chat room is 551 lines across 8 files in the raw Effect idiom. The same application is about 90 lines in one file ([`examples/chat.ts`](examples/chat.ts)) with zero Effect syntax in user code. Same engine, same wire format, same durability.
 
+More exhibits live in [`examples/`](examples/): a durable AI agent session with human-in-the-loop approval, a realtime batch importer with a crash-safe cursor, and a per-subscriber drip campaign on durable timers — each backed by integration tests against a real engine.
+
 ---
 
 ## Comprehensive Feature Matrix
@@ -114,7 +116,7 @@ Rivet's original launch-post chat room is 551 lines across 8 files in the raw Ef
 │   • Per-instance FIFO queues  │          │   • Sentry-style issue grouping  │
 │   • Atomic state rollback     │          │   • Discord & Slack Block Kit    │
 │   • Typed cross-actor errors  │          │   • SSE panel + QUIET watchdog   │
-│   • Durable self.after()      │          │   • Fail-fast two-key security   │
+│   • Durable schedule.after()  │          │   • Fail-fast two-key security   │
 │   • Client emit & routing     │          │   • Webhook connectivity tester  │
 └───────────────────────────────┘          └──────────────────────────────────┘
 ```
@@ -127,7 +129,9 @@ Rivet's original launch-post chat room is 551 lines across 8 files in the raw Ef
 | **Atomic State Drafts** | Modify `state.count += 1` directly; commits only on success | State is cloned before execution; committed via `state.update()` on resolution or discarded on throw |
 | **Per-Instance FIFO Serialization** | Eliminates race conditions and lost updates without locks | Handlers queue on a per-instance `serialize` promise chain; distinct actors run concurrently |
 | **Typed Error Channels** | Declare domain errors with payload schemas; throw with `fail.X()` | Mapped to `Schema.TaggedErrorClass` dynamically; propagates typed across actor boundaries |
-| **Durable Timers (`self.after`)** | Schedule delayed messages: `self.after(ms).Action(payload)` | Backed by Rivet engine's durable scheduler (`schedule.after`), surviving reboots |
+| **Durable Timers (`schedule.after`)** | Schedule delayed messages: `const timerId = await schedule.after(ms).Action(payload)` | Backed by Rivet engine's durable scheduler (`schedule.after`), surviving reboots; hands back the scheduler's timer id |
+| **Timer Cancellation (`schedule.cancel`)** | Revoke a scheduled timer: `await schedule.cancel(timerId)` | Delegates to `schedule.cancel`; `false` means already fired or unknown. Keep a state guard in the handler as the backstop for a fire already in flight |
+| **Internal Handlers (`internal`)** | Scheduled-only steps clients can't call: drip sends, expiry sweeps, work loops | Never registered as wire actions; timers reach them through a dispatcher guarded by a proof in the actor's durable kv. Forgeries reject typed (`isInternalOnly`) |
 | **Realtime Client Broadcast (`emit`)** | Broadcast events to connected clients: `emit.memberJoined(...)` | Routed through `rawRivetkitContext.broadcast()` |
 | **Direct Actor-to-Actor Routing (`actors`)** | Call other actors with full autocomplete: `actors(Mod).getOrCreate(k).Review(p)` | Uses action-level Effect context to create and invoke typed client proxies |
 | **Explicit Teardown (`destroy`)** | Cleanly terminate an actor instance when work is done | Invokes `rawRivetkitContext.destroy()` |
@@ -176,7 +180,7 @@ Rivet's original launch-post chat room is 551 lines across 8 files in the raw Ef
 
 Four levels; you meet the layer where you are, and each one is real Effect underneath — so climbing never means rewriting.
 
-- **Level 0, your everyday code** — what you see above: plain async handlers, payload types on the signature, `throw fail.X()`, mutable state draft committed only on success, typed `emit` / `self.after(ms)` / `actors()`.
+- **Level 0, your everyday code** — what you see above: plain async handlers, payload types on the signature, `throw fail.X()`, mutable state draft committed only on success, typed `emit` / `schedule.after(ms)` / `actors()`.
 - **Level 1, the contract** — opt into declared schemas for wire validation and a standalone client contract.
 - **Level 2, the wiring** — declare resources/services (Effect's dependency channel), typed in the handler context, swappable in tests. Still no Effect syntax.
 - **Level 3, the engine room** — drop down to raw `Effect` / `@rivetkit/effect`, full power, a supported move.
@@ -255,6 +259,9 @@ bun test              # the full suite, against a real local engine
 | File | What it is |
 |---|---|
 | [`examples/chat.ts`](examples/chat.ts) | The chat-room exhibit — the launch-post app at level 0 |
+| [`examples/support-agent.ts`](examples/support-agent.ts) | A durable AI agent session with human-in-the-loop approval |
+| [`examples/csv-importer.ts`](examples/csv-importer.ts) | A realtime batch importer: durable cursor, live progress events |
+| [`examples/drip-campaign.ts`](examples/drip-campaign.ts) | A per-subscriber drip sequence on durable timers |
 | [`examples/monitor-demo.ts`](examples/monitor-demo.ts) | The Referee with the forgotten-draw bug |
 | [`examples/demo-panel.ts`](examples/demo-panel.ts) | The runnable demo: `bun run demo` |
 | [`test/`](test/) | Integration tests, borrowing the examples as fixtures |

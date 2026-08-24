@@ -23,7 +23,9 @@ type Channel = {
   name: string;
   envVar: string;
   /** The real per-report adapter — used so --example-error matches production shape exactly. */
-  makeAdapter: (opts: { webhookUrl: string | undefined }) => (r: UnexpectedReport) => void | Promise<void>;
+  makeAdapter: (opts: {
+    webhookUrl: string | undefined;
+  }) => (r: UnexpectedReport) => void | Promise<void>;
   /** A plain friendly message, in the vendor's own wire format. */
   say: (webhookUrl: string, text: string) => Promise<void>;
 };
@@ -34,7 +36,9 @@ const post = async (webhookUrl: string, body: unknown, vendor: string) => {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`${vendor} webhook: HTTP ${res.status}`);
+  if (!res.ok) {
+    throw new Error(`${vendor} webhook: HTTP ${res.status}`);
+  }
 };
 
 const CHANNELS: Channel[] = [
@@ -82,7 +86,8 @@ const exampleReport: UnexpectedReport = {
   state: { rounds: 3, scores: { Alice: 2, Bob: 1 } },
   error: {
     name: "ExampleError",
-    message: "not a real incident — posted by `bun run hello --example-error` so you can see the shape",
+    message:
+      "not a real incident — posted by `bun run hello --example-error` so you can see the shape",
     stack: "at exampleHandler (hello.ts)",
   },
   at: Date.now(),
@@ -102,7 +107,10 @@ for (const channel of selected) {
       console.log(`${channel.name}: example error posted — that's the shape real reports take`);
     } else {
       requireWebhookUrl(channel.name.toLowerCase(), url);
-      await channel.say(url, `hello, world! If you can see this your ${channel.envVar} is correctly placed.`);
+      await channel.say(
+        url,
+        `hello, world! If you can see this your ${channel.envVar} is correctly placed.`,
+      );
       console.log(`${channel.name}: greeting sent — go check the channel`);
     }
   } catch (e) {

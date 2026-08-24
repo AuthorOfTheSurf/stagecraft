@@ -5,7 +5,10 @@
  * share the runtime via refcount.
  */
 import { ChatRoom, Moderator } from "../examples/chat.ts";
+import { CsvImporter } from "../examples/csv-importer.ts";
+import { DripCampaign } from "../examples/drip-campaign.ts";
 import { Referee } from "../examples/monitor-demo.ts";
+import { SupportAgent } from "../examples/support-agent.ts";
 import { actor, testEngine } from "../src/index.ts";
 import { reapOrphanEngines } from "../src/tools/testing.ts";
 
@@ -36,8 +39,57 @@ export const Slowpoke = actor("slowpoke", {
   },
 });
 
+// Test-only actor: arms, fires, and cancels its own timers, to prove
+// schedule.after's returned id and schedule.cancel against a real scheduler.
+export const TimerLab = actor("timer-lab", {
+  state: { fired: [] as string[] },
+  errors: {},
+  handle: {
+    Arm: async ({ ms, tag }: { ms: number; tag: string }, { schedule }) => ({
+      timerId: await schedule.after(ms).Fire({ tag }),
+    }),
+    Fire: async ({ tag }: { tag: string }, { state }) => {
+      state.fired.push(tag);
+    },
+    Cancel: async ({ timerId }: { timerId: string }, { schedule }) => ({
+      cancelled: await schedule.cancel(timerId),
+    }),
+    GetFired: async (_: void, { state }) => state.fired,
+  },
+});
+
+// Test-only actor: arms several internal timers concurrently from a cold
+// instance, so the dispatch proof gets minted under a race. Every armed tick
+// must land — a proof minted twice leaves all but one timer rejected as
+// InternalOnly, losing legitimate work silently.
+export const ProofLab = actor("proof-lab", {
+  state: { ticks: [] as number[] },
+  errors: {},
+  handle: {
+    ArmMany: async ({ n, ms }: { n: number; ms: number }, { schedule }) =>
+      Promise.all(Array.from({ length: n }, (_, i) => schedule.after(ms).Tick({ i }))),
+    GetTicks: async (_: void, { state }) => state.ticks,
+  },
+  internal: {
+    Tick: async ({ i }: { i: number }, { state }) => {
+      state.ticks.push(i);
+    },
+  },
+});
+
 reapOrphanEngines(); // a stranded engine from a prior run poisons this one
-export const engine = testEngine(ChatRoom, Moderator, Referee, ReservedFieldDemo, Slowpoke);
+export const engine = testEngine(
+  ChatRoom,
+  Moderator,
+  Referee,
+  ReservedFieldDemo,
+  Slowpoke,
+  SupportAgent,
+  CsvImporter,
+  DripCampaign,
+  TimerLab,
+  ProofLab,
+);
 
 // bun loads test files one at a time, so a per-suite refcount would hit
 // zero between files. Dispose exactly once, when the whole process ends.

@@ -15,7 +15,9 @@ export function reapOrphanEngines(): void {
     const out = Bun.spawnSync(["ps", "ax", "-o", "pid=,ppid=,command="]).stdout.toString();
     for (const line of out.split("\n")) {
       const m = line.trim().match(/^(\d+)\s+1\s+.*rivet-engine/);
-      if (!m) continue;
+      if (!m) {
+        continue;
+      }
       try {
         process.kill(Number(m[1]), "SIGTERM");
         console.error(`reaped orphaned rivet-engine (pid ${m[1]}) left by a previous run`);

@@ -17,7 +17,11 @@ import { onActivity, onUnexpected, type ActivityEvent, type UnexpectedReport } f
 
 const MAX_REPORTS = 100;
 
-export function startPanel({ port = 4949, quietAfterMs = 30_000, tracker }: { port?: number; quietAfterMs?: number; tracker?: IssueTracker } = {}) {
+export function startPanel({
+  port = 4949,
+  quietAfterMs = 30_000,
+  tracker,
+}: { port?: number; quietAfterMs?: number; tracker?: IssueTracker } = {}) {
   const reports: UnexpectedReport[] = [];
   const lastActivity = new Map<string, ActivityEvent>();
   // Per-instance running count of how many times each action has run. Kept on
@@ -28,7 +32,9 @@ export function startPanel({ port = 4949, quietAfterMs = 30_000, tracker }: { po
 
   const push = (event: "activity" | "report" | "issue", data: unknown) => {
     const line = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-    for (const send of clients) send(line);
+    for (const send of clients) {
+      send(line);
+    }
   };
 
   const stopActivity = onActivity((ev) => {
@@ -41,7 +47,9 @@ export function startPanel({ port = 4949, quietAfterMs = 30_000, tracker }: { po
   });
   const stopReports = onUnexpected((r) => {
     reports.unshift(r);
-    if (reports.length > MAX_REPORTS) reports.pop();
+    if (reports.length > MAX_REPORTS) {
+      reports.pop();
+    }
     // The fingerprint rides along so the page can fold duplicates.
     push("report", { ...r, fingerprint: fingerprintOf(r) });
   });
@@ -58,15 +66,33 @@ export function startPanel({ port = 4949, quietAfterMs = 30_000, tracker }: { po
         const stream = new ReadableStream({
           start(controller) {
             send = (line) => {
-              try { controller.enqueue(new TextEncoder().encode(line)); } catch { clients.delete(send); }
+              try {
+                controller.enqueue(new TextEncoder().encode(line));
+              } catch {
+                clients.delete(send);
+              }
             };
             clients.add(send);
             // Backlog on connect: liveness snapshot, issues, then reports oldest-first.
-            for (const [id, ev] of lastActivity) send(`event: activity\ndata: ${JSON.stringify({ ...ev, tally: tallies.get(id) })}\n\n`);
-            if (tracker) for (const i of tracker.issues.values()) send(`event: issue\ndata: ${JSON.stringify(issueRow(i))}\n\n`);
-            for (const r of [...reports].reverse()) send(`event: report\ndata: ${JSON.stringify({ ...r, fingerprint: fingerprintOf(r) })}\n\n`);
+            for (const [id, ev] of lastActivity) {
+              send(
+                `event: activity\ndata: ${JSON.stringify({ ...ev, tally: tallies.get(id) })}\n\n`,
+              );
+            }
+            if (tracker) {
+              for (const i of tracker.issues.values()) {
+                send(`event: issue\ndata: ${JSON.stringify(issueRow(i))}\n\n`);
+              }
+            }
+            for (const r of [...reports].reverse()) {
+              send(
+                `event: report\ndata: ${JSON.stringify({ ...r, fingerprint: fingerprintOf(r) })}\n\n`,
+              );
+            }
           },
-          cancel() { clients.delete(send); },
+          cancel() {
+            clients.delete(send);
+          },
         });
         return new Response(stream, {
           headers: { "content-type": "text/event-stream", "cache-control": "no-cache" },
@@ -75,7 +101,9 @@ export function startPanel({ port = 4949, quietAfterMs = 30_000, tracker }: { po
       if (url.pathname === "/resolve" && req.method === "POST" && tracker) {
         const fingerprint = url.searchParams.get("fp") ?? "";
         const issue = tracker.resolve(fingerprint);
-        if (issue) push("issue", issueRow(issue));
+        if (issue) {
+          push("issue", issueRow(issue));
+        }
         return new Response(issue ? "resolved" : "not found", { status: issue ? 200 : 404 });
       }
       return new Response(
@@ -89,7 +117,12 @@ export function startPanel({ port = 4949, quietAfterMs = 30_000, tracker }: { po
 
   return {
     url: `http://localhost:${server.port}`,
-    stop: () => { stopActivity(); stopReports(); stopIssues?.(); server.stop(true); },
+    stop: () => {
+      stopActivity();
+      stopReports();
+      stopIssues?.();
+      server.stop(true);
+    },
   };
 }
 
@@ -157,13 +190,18 @@ const PAGE = `<!doctype html>
   const issuesBody = document.getElementById("issues");
   const reportsEl = document.getElementById("reports");
   const when = (t) => new Date(t).toLocaleTimeString();
+  // Actor names, instance keys, and action labels are text the feed carries,
+  // never markup — escape every one before it reaches innerHTML so no value
+  // can open a tag or break out of an attribute.
+  const ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ESC[c]);
   // Restart the amber tick animation even if it's still mid-fade.
   const flash = (el) => { el.classList.remove("tick"); void el.offsetWidth; el.classList.add("tick"); };
 
   // "takeTurn 12\u00d7, tune 1\u00d7" — busiest action first.
   const tallyText = (tally) => Object.entries(tally || {})
     .sort((a, b) => b[1] - a[1])
-    .map(([action, n]) => action + " " + n + "\u00d7")
+    .map(([action, n]) => esc(action) + " " + esc(n) + "\u00d7")
     .join(", ");
 
   function renderActors() {
@@ -173,11 +211,11 @@ const PAGE = `<!doctype html>
       const quiet = age > QUIET_MS;
       const row = document.createElement("tr");
       row.innerHTML =
-        "<td>" + ev.actor + (quiet ? " <span class=quiet>● QUIET</span>" : " <span class=ok>●</span>") + "</td>" +
-        "<td>" + (ev.key || "\u2014") + "</td>" +
-        "<td>" + ev.action + "</td>" +
-        "<td class=" + ev.outcome + ">" + ev.outcome + "</td>" +
-        "<td>" + ev.ms + "ms</td>" +
+        "<td>" + esc(ev.actor) + (quiet ? " <span class=quiet>● QUIET</span>" : " <span class=ok>●</span>") + "</td>" +
+        "<td>" + (esc(ev.key) || "\u2014") + "</td>" +
+        "<td>" + esc(ev.action) + "</td>" +
+        "<td class=\"" + esc(ev.outcome) + "\">" + esc(ev.outcome) + "</td>" +
+        "<td>" + esc(ev.ms) + "ms</td>" +
         "<td>" + Math.round(age / 1000) + "s ago</td>" +
         "<td>" + tallyText(ev.tally) + "</td>";
       tbody.appendChild(row);

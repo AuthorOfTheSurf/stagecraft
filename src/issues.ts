@@ -48,7 +48,11 @@ export function issueTracker() {
 
   const emit = (ev: IssueEvent) => {
     for (const fn of listeners) {
-      try { fn(ev); } catch { /* a broken listener must not mask the event */ }
+      try {
+        fn(ev);
+      } catch {
+        /* a broken listener must not mask the event */
+      }
     }
   };
 
@@ -92,7 +96,9 @@ export function issueTracker() {
     /** Mark an issue handled. If it recurs, that's a loud regression. */
     resolve(fingerprint: string): Issue | undefined {
       const issue = issues.get(fingerprint);
-      if (issue) issue.status = "resolved";
+      if (issue) {
+        issue.status = "resolved";
+      }
       return issue;
     },
     /** Direct feed for tests; the live channel calls this too. */

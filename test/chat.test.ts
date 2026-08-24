@@ -51,7 +51,9 @@ test(
       await room.SendMessage({ sender: "Mallory", text: "let me in" });
       throw new Error("should have thrown");
     } catch (e) {
-      if (!ChatRoom.is.MemberNotInRoom(e)) throw e;
+      if (!ChatRoom.is.MemberNotInRoom(e)) {
+        throw e;
+      }
       expect(e.member).toBe("Mallory");
     }
 
@@ -59,7 +61,9 @@ test(
       await room.SendMessage({ sender: "Alice", text: "buy my spam" });
       throw new Error("should have thrown");
     } catch (e) {
-      if (!Moderator.is.BannedWords(e)) throw e;
+      if (!Moderator.is.BannedWords(e)) {
+        throw e;
+      }
       expect(e.reason).toBe("no spam allowed");
     }
 
@@ -97,7 +101,9 @@ test(
     } catch (e) {
       // The guard's refusal is an undeclared error, so it surfaces on the
       // unexpected channel with the reserved-field explanation intact.
-      if (!isUnexpected(e)) throw e;
+      if (!isUnexpected(e)) {
+        throw e;
+      }
       expect(e.message).toContain('reserved field "message"');
     }
   },

@@ -12,7 +12,7 @@ Observed while building the layer and its exhibits against `@rivetkit/effect` 2.
 - **The contract/implementation split earns its file.** The `api.ts` pattern imports safely into client code with zero server leakage — the discipline stagecraft's level 1 ("the contract") formalizes was upstream's idea first.
 - **Reject-before-mutate discipline in every example.** Their example code consistently validates before touching state, which is why stagecraft's draft-commit semantics compose with the substrate instead of fighting it.
 - **Wake-scope design is genuinely thoughtful.** Services are yielded once per wake, not per action; `state.changes` is a subscribable stream; finalizers run on sleep; actor-to-actor RPC goes through the same client API; embedded SQLite ships with an `onMigrate` hook.
-- **Actor-to-actor calls, scheduling, and events are all present** in the raw context — stagecraft's `actors()`, `self.after(ms)`, and `emit` are typed handles on machinery that upstream already runs.
+- **Actor-to-actor calls, scheduling, and events are all present** in the raw context — stagecraft's `actors()`, `schedule.after(ms)`, and `emit` are typed handles on machinery that upstream already runs.
 
 The honest summary: **upstream's engine and wire layers are strong; the friction is concentrated in the developer-facing surface** (ceremony, packaging, options plumbing). That is exactly why a thin layer can fix so much — and why this project is a complement, not a fork.
 
@@ -25,7 +25,7 @@ What stagecraft itself guarantees today, with provenance per the house rule (a c
 | **Atomic state drafts** | A handler mutates a draft; state commits only if the handler succeeds. A failed handler leaves state untouched. | Proven: `chat.test.ts` — "a failed handler leaves state untouched (draft discarded)" |
 | **Typed declared errors** | Errors declared on an actor cross the wire typed; callers catch them by name with fields intact. | Proven: `chat.test.ts` — "typed errors: non-members bounce, moderator error flows to the caller" |
 | **Unexpected-error channel** | An undeclared throw becomes a typed `UnexpectedError` to the caller plus a rich report (actor, action, payload, state, stack) — and the actor survives. | Proven: `monitor.test.ts` — "the forgotten draw: typed error, rich report, actor survives" |
-| **Scheduling** | `self.after(ms)` delivers a future message to the same instance. | Proven: `chat.test.ts` — "join, chat, and the scheduled Admin welcome lands" |
+| **Scheduling** | `schedule.after(ms)` delivers a future message to the same instance. | Proven: `chat.test.ts` — "join, chat, and the scheduled Admin welcome lands" |
 | **Issue grouping policy** | Reports group by fingerprint; new alerts, recurrence counts quietly, resolved-then-recurs alerts loudly as a regression. | Proven: `issues.test.ts` (all three tests) |
 | **Sink isolation** | A broken alert sink never masks a report from the other sinks, and never crashes the process. | Proven: `adapters.test.ts` — "dispatch fans one report out…" |
 | **Fail at wiring, not at incident time** | A missing or garbled webhook URL throws at adapter construction, with the value never echoed. | Proven: `adapters.test.ts` — "webhook adapters fail fast at construction…" |
