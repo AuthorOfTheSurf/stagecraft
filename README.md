@@ -91,18 +91,19 @@ export const ChatRoom = actor("ChatRoom", {
 });
 ```
 
-Define an actor. Utilize its durable state to store members and messages. Describe its message handlers in ordinary async TypeScript. With stagecraft messages to one actor instance run one at a time, FIFO. State changes commit _only_ when a handler succeeds. This is all built on [Effect](https://effect.website/docs/getting-started/the-effect-type/) and [`@rivetkit/effect`](https://www.npmjs.com/package/@rivetkit/effect) and notice that there is no Effect jargon required (generators, refs, etc.), the developer gets to write plain and familiar-looking TypeScript.
+Define an actor. Use its durable state to store members and messages. Describe its message handlers in ordinary async TypeScript. With stagecraft, messages sent to the same actor instance run one at a time, in FIFO order. State changes commit _only_ when a handler succeeds. This is built on [Effect](https://effect.website/docs/getting-started/the-effect-type/) and [`@rivetkit/effect`](https://www.npmjs.com/package/@rivetkit/effect), but you don't need to know Effect jargon (generators, refs, and so on) to write plain, familiar-looking TypeScript.
 
-Take a look at [`examples/`](examples/) to find usecases similar to your own:
-- Durable AI agent session with human-in-the-loop approval ([support-agent.ts](examples/support-agent.ts))
-- Realtime batch importer with a crash-safe cursor ([csv-importer.ts](examples/csv-importer.ts))
-- Per-subscriber drip campaign on durable timers ([drip-campaign.ts](examples/drip-campaign.ts))
+Take a look at [`examples/`](examples/) to find use cases similar to your own:
 
-Each backed by integration tests against a real engine.
+- Durable AI agent session with human-in-the-loop approval ([support-agent.ts](examples/support-agent.ts)).
+- Real-time batch importer with a crash-safe cursor ([csv-importer.ts](examples/csv-importer.ts)).
+- Per-subscriber drip campaign on durable timers ([drip-campaign.ts](examples/drip-campaign.ts)).
+
+Each example is backed by integration tests against a real engine.
 
 ---
 
-## Comprehensive Feature Matrix
+## Features
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -133,7 +134,7 @@ Each backed by integration tests against a real engine.
 | **Durable Timers (`schedule.after`)** | Schedule delayed messages: `const timerId = await schedule.after(ms).Action(payload)` | Backed by Rivet engine's durable scheduler (`schedule.after`), surviving reboots; hands back the scheduler's timer id. The Actor will automatically wake, do the work, then go back to sleep |
 | **Timer Cancellation (`schedule.cancel`)** | Revoke a scheduled timer: `await schedule.cancel(timerId)` | Delegates to `schedule.cancel`; `false` means already fired or unknown. Keep a state guard in the handler as the backstop for a fire already in flight |
 | **Internal Handlers (`internal`)** | Scheduled-only steps clients can't call: drip sends, expiry sweeps, work loops | Never registered as wire actions; timers reach them through a dispatcher guarded by a proof in the actor's durable kv. Forgeries reject typed (`isInternalOnly`) |
-| **Realtime Client Broadcast (`emit`)** | Broadcast events to connected clients: `emit.memberJoined(...)` | Routed through `rawRivetkitContext.broadcast()` |
+| **Real-time Client Broadcast (`emit`)** | Broadcast events to connected clients: `emit.memberJoined(...)` | Routed through `rawRivetkitContext.broadcast()` |
 | **Direct Actor-to-Actor Routing (`actors`)** | Call other actors with full autocomplete: `actors(Mod).getOrCreate(k).Review(p)` | Uses action-level Effect context to create and invoke typed client proxies |
 | **Explicit Teardown (`destroy`)** | Cleanly terminate an actor instance when work is done | Invokes `rawRivetkitContext.destroy()` |
 
@@ -173,7 +174,7 @@ Each backed by integration tests against a real engine.
 | **One-Line Test Engine (`testEngine`)** | Boots a local `rivet-engine` instance with typed client accessors. Merges actor layers into a single `ManagedRuntime` to prevent `Registry.test` clobbering. |
 | **Zombie Engine Reaper (`reapOrphanEngines`)** — from `@authorofthesurf/stagecraft/testing` | Automatically searches for and terminates orphaned `rivet-engine` background processes on startup, preventing port 6420 collisions. |
 | **Two-Key Security Pattern** | External alerting requires both a deliberate CLI flag (`--slack`, `--discord`) and the environment variable (`SLACK_WEBHOOK_URL`, `DISCORD_WEBHOOK_URL`), catching typos early. |
-| **Publish Quality Gate** | `prepublishOnly` script automatically runs `tsc --noEmit`, `bun test`, and `bun run build` before packaging to npm. |
+| **Publish Quality Gate** | `prepublishOnly` script automatically runs lint, format checks, typechecking, tests, and the build before packaging to npm. |
 
 ---
 
@@ -188,17 +189,35 @@ Build progressively, since having complete knowledge of all the message types an
 
 ---
 
-## Built in issue panel example
+## Built-in issue panel example
 
-Even without integrating with Discord, Slack, Sentry etc. you can still observe your Actors in motion with simple tracker + Panel. Here's a code example that forwards unexpected error alerts to stdout, Discord, Slack, and the built in Panel that runs on localhost:4949 by default.
+Even without integrating with Discord, Slack, or Sentry, you can observe your actors in motion with a tracker and the panel. This zero-configuration example sends unexpected errors to stdout and opens the panel on `localhost:4949` by default.
+
+```ts
+import { issueTracker, alertWith, stdoutAlert } from "@authorofthesurf/stagecraft";
+import { startPanel } from "@authorofthesurf/stagecraft/panel";
+
+const tracker = issueTracker();
+alertWith(tracker, stdoutAlert());
+startPanel({ tracker });
+```
+
+To add external alerting, set and pass `DISCORD_WEBHOOK_URL` and/or `SLACK_WEBHOOK_URL` to their corresponding adapter.
 
 ```ts
 import { issueTracker, alertWith, stdoutAlert, discordAlert, slackAlert } from "@authorofthesurf/stagecraft";
 import { startPanel } from "@authorofthesurf/stagecraft/panel";
 
+const { DISCORD_WEBHOOK_URL, SLACK_WEBHOOK_URL } = process.env;
 const tracker = issueTracker();
-alertWith(tracker, stdoutAlert(), discordAlert({ webhookUrl }), slackAlert({ webhookUrl: slackUrl }));
-startPanel({ tracker });   // live web panel: actors, issues, failure feed
+
+alertWith(
+  tracker,
+  stdoutAlert(),
+  discordAlert({ webhookUrl: DISCORD_WEBHOOK_URL }),
+  slackAlert({ webhookUrl: SLACK_WEBHOOK_URL }),
+);
+startPanel({ tracker });
 ```
 
 ---
@@ -210,7 +229,7 @@ bun install
 bun run demo          # boots a real engine, opens http://localhost:4949
 ```
 
-A referee actor scores rock-paper-scissors rounds and carries a realistic bug: the developer handled both winners and forgot that `winnerOf` can return `"draw"`
+A referee actor scores rock-paper-scissors rounds and carries a realistic bug: the developer handled both winners and forgot that `winnerOf` can return `"draw"`.
 
 Watch the issue appear, click **Resolve**, and wait a few rounds for the 🔥 regression. With no flags you get the panel and stdout alerts — a basic error monitor with zero external dependencies.
 
@@ -261,7 +280,7 @@ bun test              # the full suite, against a real local engine
 |---|---|
 | [`examples/chat.ts`](examples/chat.ts) | The chat-room exhibit — the launch-post app at level 0 |
 | [`examples/support-agent.ts`](examples/support-agent.ts) | A durable AI agent session with human-in-the-loop approval |
-| [`examples/csv-importer.ts`](examples/csv-importer.ts) | A realtime batch importer: durable cursor, live progress events |
+| [`examples/csv-importer.ts`](examples/csv-importer.ts) | A real-time batch importer: durable cursor, live progress events |
 | [`examples/drip-campaign.ts`](examples/drip-campaign.ts) | A per-subscriber drip sequence on durable timers |
 | [`examples/monitor-demo.ts`](examples/monitor-demo.ts) | The Referee with the forgotten-draw bug |
 | [`examples/demo-panel.ts`](examples/demo-panel.ts) | The runnable demo: `bun run demo` |
@@ -282,9 +301,9 @@ bun test              # the full suite, against a real local engine
 ## Design commitments
 
 - **State is the durable store.** Every actor persists a JSON state document across sleep/restart; relational storage like SQLite is an opt-in.
-- **Serialization is the actor model.** The layer runs one handler at a time per instance, to fulfull the one-message-at-a-time FIFO spec
-- **Errors are part of the contract.** Declared errors cross the wire typed and are guarded client-side; undeclared errors go to the unexpected-error channel instead of being masked and only remaining in the process & stdout
-- **Effect still reachable.** Everything is real Effect underneath; the drop-down is graceful and encouraged when you need it. Otherwise just write natural-looking TypeScript and focus on business logic
+- **Serialization is the actor model.** The layer runs one handler at a time per instance to fulfill the one-message-at-a-time FIFO promise.
+- **Errors are part of the contract.** Declared errors cross the wire typed and are guarded client-side; undeclared errors go to the unexpected-error channel instead of being masked or left only in process output.
+- **Effect is still reachable.** Everything is real Effect underneath; the drop-down is graceful and encouraged when you need it. Otherwise, write natural-looking TypeScript and focus on business logic.
 
 ## License
 
