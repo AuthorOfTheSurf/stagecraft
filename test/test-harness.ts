@@ -5,7 +5,10 @@
  * share the runtime via refcount.
  */
 import { ChatRoom, Moderator } from "../examples/chat.ts";
+import { CsvImporter } from "../examples/csv-importer.ts";
+import { DripCampaign } from "../examples/drip-campaign.ts";
 import { Referee } from "../examples/monitor-demo.ts";
+import { SupportAgent } from "../examples/support-agent.ts";
 import { actor, testEngine } from "../src/index.ts";
 import { reapOrphanEngines } from "../src/tools/testing.ts";
 
@@ -37,7 +40,16 @@ export const Slowpoke = actor("slowpoke", {
 });
 
 reapOrphanEngines(); // a stranded engine from a prior run poisons this one
-export const engine = testEngine(ChatRoom, Moderator, Referee, ReservedFieldDemo, Slowpoke);
+export const engine = testEngine(
+  ChatRoom,
+  Moderator,
+  Referee,
+  ReservedFieldDemo,
+  Slowpoke,
+  SupportAgent,
+  CsvImporter,
+  DripCampaign,
+);
 
 // bun loads test files one at a time, so a per-suite refcount would hit
 // zero between files. Dispose exactly once, when the whole process ends.
