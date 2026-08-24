@@ -26,6 +26,12 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      - name: Lint
+        run: bun run lint
+
+      - name: Format check
+        run: bun run format:check
+
       # Boots a real rivet-engine child process, so this is also the
       # smoke test that the engine binary runs on a Linux runner.
       - name: Test

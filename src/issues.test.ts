@@ -20,7 +20,9 @@ const report = (over: Partial<UnexpectedReport> = {}): UnexpectedReport => ({
 
 test("fingerprint groups the same defect across ids, times, and digits", () => {
   const a = fingerprintOf(report({ error: { name: "TypeError", message: "row 42 missing" } }));
-  const b = fingerprintOf(report({ error: { name: "TypeError", message: "row 7 missing" }, at: 1 }));
+  const b = fingerprintOf(
+    report({ error: { name: "TypeError", message: "row 7 missing" }, at: 1 }),
+  );
   expect(a).toBe(b);
   const other = fingerprintOf(report({ action: "WinRate" }));
   expect(other).not.toBe(a);

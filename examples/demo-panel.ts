@@ -42,7 +42,12 @@ for (const a of argFlags) {
   }
 }
 
-function optIn(flag: string, channel: string, envVar: string, make: (opts: { webhookUrl: string | undefined }) => IssueAlertAdapter): IssueAlertAdapter[] {
+function optIn(
+  flag: string,
+  channel: string,
+  envVar: string,
+  make: (opts: { webhookUrl: string | undefined }) => IssueAlertAdapter,
+): IssueAlertAdapter[] {
   if (!argFlags.includes(flag)) {
     console.log(`${channel} alerts off — pass ${flag} (with ${envVar} set) to enable`);
     return [];
@@ -57,7 +62,9 @@ function optIn(flag: string, channel: string, envVar: string, make: (opts: { web
     console.log(`${channel} alerts on`);
     return [adapter];
   } catch (e) {
-    console.error(`${channel} alerts requested (${flag}) but ${envVar} is unusable: ${e instanceof Error ? e.message : e}`);
+    console.error(
+      `${channel} alerts requested (${flag}) but ${envVar} is unusable: ${e instanceof Error ? e.message : e}`,
+    );
     process.exit(1);
   }
 }
@@ -94,7 +101,10 @@ while (true) {
   const [alice, bob] = [pick(), pick()];
   try {
     const { winner } = await referee.Play({ alice, bob });
-    await room.SendMessage({ sender: winner, text: `round ${round}: my ${winner === "Alice" ? alice : bob} wins!` });
+    await room.SendMessage({
+      sender: winner,
+      text: `round ${round}: my ${winner === "Alice" ? alice : bob} wins!`,
+    });
   } catch {
     // the forgotten draw — already reported through the monitor channel
   }

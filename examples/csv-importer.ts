@@ -16,9 +16,13 @@ const CHUNK_SIZE = 25;
 // The exhibit's "database write": parse a `sku,qty` line or say why not.
 const importLine = (raw: string): { sku: string; qty: number } => {
   const [sku, qty] = raw.split(",").map((s) => s.trim());
-  if (!sku) throw new RangeError("missing sku");
+  if (!sku) {
+    throw new RangeError("missing sku");
+  }
   const n = Number(qty);
-  if (!Number.isInteger(n) || n < 0) throw new RangeError(`bad qty "${qty}"`);
+  if (!Number.isInteger(n) || n < 0) {
+    throw new RangeError(`bad qty "${qty}"`);
+  }
   return { sku, qty: n };
 };
 
@@ -41,14 +45,20 @@ export const CsvImporter = actor("CsvImporter", {
   handle: {
     // Uploads arrive in as many Append calls as the client likes.
     Append: async ({ lines }: { lines: string[] }, { state, fail }) => {
-      if (state.status !== "receiving") throw fail.AlreadyStarted({ status: state.status });
+      if (state.status !== "receiving") {
+        throw fail.AlreadyStarted({ status: state.status });
+      }
       state.lines.push(...lines);
       return { total: state.lines.length };
     },
 
     Start: async (_: void, { state, schedule, fail }) => {
-      if (state.status !== "receiving") throw fail.AlreadyStarted({ status: state.status });
-      if (state.lines.length === 0) throw fail.NothingToImport({});
+      if (state.status !== "receiving") {
+        throw fail.AlreadyStarted({ status: state.status });
+      }
+      if (state.lines.length === 0) {
+        throw fail.NothingToImport({});
+      }
       state.status = "running";
       schedule.after(0).Work();
       return { total: state.lines.length };
@@ -57,7 +67,9 @@ export const CsvImporter = actor("CsvImporter", {
     // One chunk per message. The cursor commits with the chunk, so replayed
     // or resumed work never double-imports a committed row.
     Work: async (_: void, { state, emit, schedule }) => {
-      if (state.status !== "running") return; // stale timer after completion
+      if (state.status !== "running") {
+        return;
+      } // stale timer after completion
       const end = Math.min(state.cursor + CHUNK_SIZE, state.lines.length);
       for (; state.cursor < end; state.cursor++) {
         const raw = state.lines[state.cursor]!;

@@ -64,7 +64,9 @@ export const requireWebhookUrl = (adapter: string, url: string | undefined): str
   } catch {
     // Never echo the value: a webhook URL is a credential, and the most
     // common garble (a paste that lost its scheme) is still mostly secret.
-    throw new Error(`${adapter}: webhookUrl doesn't look like a URL (value withheld — it may be a secret)`);
+    throw new Error(
+      `${adapter}: webhookUrl doesn't look like a URL (value withheld — it may be a secret)`,
+    );
   }
   if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
     throw new Error(`${adapter}: webhookUrl must be http(s), got ${parsed.protocol}//…`);
@@ -72,11 +74,9 @@ export const requireWebhookUrl = (adapter: string, url: string | undefined): str
   return url;
 };
 
-const clip = (s: string, max: number) =>
-  s.length <= max ? s : `${s.slice(0, max - 1)}…`;
+const clip = (s: string, max: number) => (s.length <= max ? s : `${s.slice(0, max - 1)}…`);
 
-const codeBlock = (s: string, max: number) =>
-  `\`\`\`\n${clip(s, max - 8)}\n\`\`\``;
+const codeBlock = (s: string, max: number) => `\`\`\`\n${clip(s, max - 8)}\n\`\`\``;
 
 const reportEmbed = (r: UnexpectedReport, title: string, color: number) => ({
   title,
@@ -95,7 +95,9 @@ const postDiscord = async (webhookUrl: string, content: string, embed: unknown) 
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ content, embeds: [embed] }),
   });
-  if (!res.ok) throw new Error(`discord webhook: HTTP ${res.status}`);
+  if (!res.ok) {
+    throw new Error(`discord webhook: HTTP ${res.status}`);
+  }
 };
 
 /**
@@ -123,7 +125,9 @@ const reportBlocks = (r: UnexpectedReport, title: string) => [
   { type: "header", text: { type: "plain_text", text: clip(title, 150) } },
   {
     type: "context",
-    elements: [{ type: "mrkdwn", text: `\`${r.actor}.${r.action}\` · ${new Date(r.at).toISOString()}` }],
+    elements: [
+      { type: "mrkdwn", text: `\`${r.actor}.${r.action}\` · ${new Date(r.at).toISOString()}` },
+    ],
   },
   mrkdwnSection("payload", JSON.stringify(r.payload)),
   mrkdwnSection("state", JSON.stringify(r.state)),
@@ -135,9 +139,14 @@ const postSlack = async (webhookUrl: string, text: string, blocks: unknown[]) =>
     method: "POST",
     headers: { "content-type": "application/json" },
     // `text` doubles as the notification/fallback line when blocks render.
-    body: JSON.stringify({ text, blocks: [{ type: "section", text: { type: "mrkdwn", text } }, ...blocks] }),
+    body: JSON.stringify({
+      text,
+      blocks: [{ type: "section", text: { type: "mrkdwn", text } }, ...blocks],
+    }),
   });
-  if (!res.ok) throw new Error(`slack webhook: HTTP ${res.status}`);
+  if (!res.ok) {
+    throw new Error(`slack webhook: HTTP ${res.status}`);
+  }
 };
 
 /**
@@ -166,7 +175,9 @@ export type IssueAlertAdapter = (ev: IssueEvent) => void | Promise<void>;
 /** Alert on new issues and regressions; recurrences stay quiet. */
 export function alertWith(tracker: IssueTracker, ...adapters: IssueAlertAdapter[]): () => void {
   return tracker.on((ev) => {
-    if (ev.kind === "recurrence") return;
+    if (ev.kind === "recurrence") {
+      return;
+    }
     for (const adapter of adapters) {
       Promise.resolve()
         .then(() => adapter(ev))
@@ -176,13 +187,18 @@ export function alertWith(tracker: IssueTracker, ...adapters: IssueAlertAdapter[
 }
 
 export const stdoutAlert = (): IssueAlertAdapter => (ev) => {
-  const head = ev.kind === "regression"
-    ? `REGRESSION — resolved issue is back (${ev.issue.count}× total): ${ev.issue.title}`
-    : `NEW ISSUE: ${ev.issue.title}`;
+  const head =
+    ev.kind === "regression"
+      ? `REGRESSION — resolved issue is back (${ev.issue.count}× total): ${ev.issue.title}`
+      : `NEW ISSUE: ${ev.issue.title}`;
   console.error(`${head}\n${format(ev.report)}`);
 };
 
-export const slackAlert = ({ webhookUrl }: { webhookUrl: string | undefined }): IssueAlertAdapter => {
+export const slackAlert = ({
+  webhookUrl,
+}: {
+  webhookUrl: string | undefined;
+}): IssueAlertAdapter => {
   const url = requireWebhookUrl("slackAlert", webhookUrl);
   return (ev) =>
     postSlack(
@@ -194,7 +210,11 @@ export const slackAlert = ({ webhookUrl }: { webhookUrl: string | undefined }): 
     );
 };
 
-export const discordAlert = ({ webhookUrl }: { webhookUrl: string | undefined }): IssueAlertAdapter => {
+export const discordAlert = ({
+  webhookUrl,
+}: {
+  webhookUrl: string | undefined;
+}): IssueAlertAdapter => {
   const url = requireWebhookUrl("discordAlert", webhookUrl);
   return (ev) =>
     postDiscord(
@@ -202,6 +222,10 @@ export const discordAlert = ({ webhookUrl }: { webhookUrl: string | undefined })
       ev.kind === "regression"
         ? `🔥 **REGRESSION** — resolved issue is back (${ev.issue.count}× total): \`${clip(ev.issue.title, 200)}\``
         : `🆕 **New issue**: \`${clip(ev.issue.title, 200)}\``,
-      reportEmbed(ev.report, `Issue ${clip(ev.issue.fingerprint, 240)}`, ev.kind === "regression" ? 0xff5500 : 0xe74c3c),
+      reportEmbed(
+        ev.report,
+        `Issue ${clip(ev.issue.fingerprint, 240)}`,
+        ev.kind === "regression" ? 0xff5500 : 0xe74c3c,
+      ),
     );
 };

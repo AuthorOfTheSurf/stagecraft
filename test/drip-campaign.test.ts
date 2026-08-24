@@ -35,11 +35,7 @@ test(
       status = await drip.GetStatus();
     }
     expect(status.status).toBe("completed");
-    expect(status.sent.map((s) => s.subject)).toEqual([
-      "Welcome",
-      "Getting started",
-      "Pro tips",
-    ]);
+    expect(status.sent.map((s) => s.subject)).toEqual(["Welcome", "Getting started", "Pro tips"]);
     expect(status.remaining).toBe(0);
   },
   TIMEOUT,
@@ -78,7 +74,9 @@ test(
       await drip.Unsubscribe();
       throw new Error("should have thrown");
     } catch (e) {
-      if (!DripCampaign.is.NotSubscribed(e)) throw e;
+      if (!DripCampaign.is.NotSubscribed(e)) {
+        throw e;
+      }
     }
   },
   TIMEOUT,

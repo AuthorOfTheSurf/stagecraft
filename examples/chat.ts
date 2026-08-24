@@ -14,7 +14,9 @@ export const Moderator = actor("Moderator", {
   errors: { BannedWords: {} as { reason: string } },
   handle: {
     Review: async ({ text }: { text: string }, { fail }) => {
-      if (text.includes("spam")) throw fail.BannedWords({ reason: "no spam allowed" });
+      if (text.includes("spam")) {
+        throw fail.BannedWords({ reason: "no spam allowed" });
+      }
     },
   },
 });
@@ -35,7 +37,9 @@ export const ChatRoom = actor("ChatRoom", {
   },
   handle: {
     Initialize: async ({ name }: { name: string }, { state }) => {
-      if (!state.name) state.name = name;
+      if (!state.name) {
+        state.name = name;
+      }
     },
 
     Join: async ({ name }: { name: string }, { state, emit, schedule }) => {
@@ -47,19 +51,18 @@ export const ChatRoom = actor("ChatRoom", {
     },
 
     Leave: async ({ name }: { name: string }, { state, emit, fail }) => {
-      if (!state.members.some((m) => m.name === name))
+      if (!state.members.some((m) => m.name === name)) {
         throw fail.MemberNotInRoom({ member: name });
+      }
       state.members = state.members.filter((m) => m.name !== name);
       emit.memberLeft({ name });
     },
 
-    SendMessage: async (
-      m: { sender: string; text: string },
-      { state, actors, emit, fail },
-    ) => {
+    SendMessage: async (m: { sender: string; text: string }, { state, actors, emit, fail }) => {
       const isAdmin = m.sender === "Admin";
-      if (!isAdmin && !state.members.some((x) => x.name === m.sender))
+      if (!isAdmin && !state.members.some((x) => x.name === m.sender)) {
         throw fail.MemberNotInRoom({ member: m.sender });
+      }
       await actors(Moderator).getOrCreate("main").Review({ text: m.text });
       const message = { sender: m.sender, text: m.text, at: Date.now() };
       state.messages.push(message);

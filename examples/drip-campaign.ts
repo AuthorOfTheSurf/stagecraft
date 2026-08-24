@@ -41,8 +41,12 @@ export const DripCampaign = actor("DripCampaign", {
       { email, steps }: { email: string; steps: DripStep[] },
       { state, schedule, fail },
     ) => {
-      if (state.status !== "idle") throw fail.AlreadySubscribed({ email: state.email });
-      if (steps.length === 0) throw fail.EmptySequence({});
+      if (state.status !== "idle") {
+        throw fail.AlreadySubscribed({ email: state.email });
+      }
+      if (steps.length === 0) {
+        throw fail.EmptySequence({});
+      }
       state.email = email;
       state.steps = steps;
       state.status = "active";
@@ -54,7 +58,9 @@ export const DripCampaign = actor("DripCampaign", {
     // send is genuinely due. The state re-check stays as the backstop for
     // a fire already in flight when the cancel landed.
     SendStep: async ({ index }: { index: number }, { state, emit, schedule }) => {
-      if (state.status !== "active" || index !== state.nextIndex) return;
+      if (state.status !== "active" || index !== state.nextIndex) {
+        return;
+      }
       const step = state.steps[index]!;
       deliver(state.email, step.subject);
       state.sent.push({ subject: step.subject, at: Date.now() });
@@ -71,8 +77,12 @@ export const DripCampaign = actor("DripCampaign", {
     },
 
     Unsubscribe: async (_: void, { state, emit, schedule, fail }) => {
-      if (state.status !== "active") throw fail.NotSubscribed({});
-      if (state.nextTimerId) await schedule.cancel(state.nextTimerId);
+      if (state.status !== "active") {
+        throw fail.NotSubscribed({});
+      }
+      if (state.nextTimerId) {
+        await schedule.cancel(state.nextTimerId);
+      }
       state.nextTimerId = "";
       state.status = "unsubscribed";
       emit.unsubscribed({ email: state.email });

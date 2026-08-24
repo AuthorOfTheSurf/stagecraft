@@ -39,13 +39,20 @@ const refundOrder = (orderId: string) => `refund issued for ${orderId}`;
 // an LLM call; the tool-approval machinery below is model-agnostic.
 const decide = (
   text: string,
-): { kind: "reply"; text: string } | { kind: "search"; query: string } | {
-  kind: "refund";
-  orderId: string;
-} => {
+):
+  | { kind: "reply"; text: string }
+  | { kind: "search"; query: string }
+  | {
+      kind: "refund";
+      orderId: string;
+    } => {
   const refund = text.match(/refund order (\S+)/i);
-  if (refund) return { kind: "refund", orderId: refund[1]! };
-  if (/policy|docs|how do i/i.test(text)) return { kind: "search", query: text };
+  if (refund) {
+    return { kind: "refund", orderId: refund[1]! };
+  }
+  if (/policy|docs|how do i/i.test(text)) {
+    return { kind: "search", query: text };
+  }
   return { kind: "reply", text: "Happy to help — what do you need?" };
 };
 
@@ -71,7 +78,9 @@ export const SupportAgent = actor("SupportAgent", {
     },
 
     UserMessage: async ({ text }: { text: string }, { state, emit, schedule, fail }) => {
-      if (state.pending) throw fail.ApprovalPending({ id: state.pending.id });
+      if (state.pending) {
+        throw fail.ApprovalPending({ id: state.pending.id });
+      }
       state.messages.push({ role: "user", text, at: Date.now() });
 
       const action = decide(text);
@@ -103,9 +112,10 @@ export const SupportAgent = actor("SupportAgent", {
 
       const reply: AgentMessage = {
         role: "agent",
-        text: action.kind === "search"
-          ? `Here's what I found: ${searchDocs(action.query)}`
-          : action.text,
+        text:
+          action.kind === "search"
+            ? `Here's what I found: ${searchDocs(action.query)}`
+            : action.text,
         at: Date.now(),
       };
       state.messages.push(reply);
@@ -114,7 +124,9 @@ export const SupportAgent = actor("SupportAgent", {
     },
 
     Approve: async ({ id }: { id: string }, { state, emit, schedule, fail }) => {
-      if (!state.pending || state.pending.id !== id) throw fail.NoSuchApproval({ id });
+      if (!state.pending || state.pending.id !== id) {
+        throw fail.NoSuchApproval({ id });
+      }
       await schedule.cancel(state.pending.timerId);
       const result = refundOrder(state.pending.orderId);
       state.pending = null;
@@ -124,8 +136,13 @@ export const SupportAgent = actor("SupportAgent", {
       emit.approvalResolved({ id, outcome: "approved" });
     },
 
-    Deny: async ({ id, reason }: { id: string; reason: string }, { state, emit, schedule, fail }) => {
-      if (!state.pending || state.pending.id !== id) throw fail.NoSuchApproval({ id });
+    Deny: async (
+      { id, reason }: { id: string; reason: string },
+      { state, emit, schedule, fail },
+    ) => {
+      if (!state.pending || state.pending.id !== id) {
+        throw fail.NoSuchApproval({ id });
+      }
       await schedule.cancel(state.pending.timerId);
       state.pending = null;
       const reply: AgentMessage = {
@@ -142,7 +159,9 @@ export const SupportAgent = actor("SupportAgent", {
     // a genuinely unanswered request. The id check stays as the backstop for
     // a fire already in flight when the cancel landed.
     ExpireApproval: async ({ id }: { id: string }, { state, emit }) => {
-      if (!state.pending || state.pending.id !== id) return;
+      if (!state.pending || state.pending.id !== id) {
+        return;
+      }
       state.pending = null;
       const reply: AgentMessage = {
         role: "agent",
