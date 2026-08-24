@@ -1,7 +1,7 @@
 /**
  * A durable AI agent session with a human in the loop — one actor per
  * conversation. The transcript and any parked approval live in actor state,
- * so the session survives restarts; `self.after` is the approval-expiry
+ * so the session survives restarts; `schedule.after` is the approval-expiry
  * clock. The model call is a deterministic stand-in (`decide`) so the
  * exhibit runs offline — in a real app that function is your streamText /
  * Claude call, and the actor around it does not change.
@@ -19,6 +19,8 @@ export type PendingApproval = {
   tool: "refundOrder";
   orderId: string;
   requestedAt: number;
+  /** The expiry timer, cancelled when a human resolves the approval. */
+  timerId: string;
 };
 
 // --- Tools ------------------------------------------------------------
@@ -37,13 +39,20 @@ const refundOrder = (orderId: string) => `refund issued for ${orderId}`;
 // an LLM call; the tool-approval machinery below is model-agnostic.
 const decide = (
   text: string,
-): { kind: "reply"; text: string } | { kind: "search"; query: string } | {
-  kind: "refund";
-  orderId: string;
-} => {
+):
+  | { kind: "reply"; text: string }
+  | { kind: "search"; query: string }
+  | {
+      kind: "refund";
+      orderId: string;
+    } => {
   const refund = text.match(/refund order (\S+)/i);
-  if (refund) return { kind: "refund", orderId: refund[1]! };
-  if (/policy|docs|how do i/i.test(text)) return { kind: "search", query: text };
+  if (refund) {
+    return { kind: "refund", orderId: refund[1]! };
+  }
+  if (/policy|docs|how do i/i.test(text)) {
+    return { kind: "search", query: text };
+  }
   return { kind: "reply", text: "Happy to help — what do you need?" };
 };
 
@@ -68,8 +77,10 @@ export const SupportAgent = actor("SupportAgent", {
       state.approvalTtlMs = approvalTtlMs;
     },
 
-    UserMessage: async ({ text }: { text: string }, { state, emit, self, fail }) => {
-      if (state.pending) throw fail.ApprovalPending({ id: state.pending.id });
+    UserMessage: async ({ text }: { text: string }, { state, emit, schedule, fail }) => {
+      if (state.pending) {
+        throw fail.ApprovalPending({ id: state.pending.id });
+      }
       state.messages.push({ role: "user", text, at: Date.now() });
 
       const action = decide(text);
@@ -80,9 +91,15 @@ export const SupportAgent = actor("SupportAgent", {
 
       if (action.kind === "refund") {
         const id = `approval-${state.nextApprovalId++}`;
-        state.pending = { id, tool: "refundOrder", orderId: action.orderId, requestedAt: Date.now() };
+        const timerId = await schedule.after(state.approvalTtlMs).ExpireApproval({ id });
+        state.pending = {
+          id,
+          tool: "refundOrder",
+          orderId: action.orderId,
+          requestedAt: Date.now(),
+          timerId,
+        };
         emit.approvalRequested(state.pending);
-        self.after(state.approvalTtlMs).ExpireApproval({ id });
         const reply: AgentMessage = {
           role: "agent",
           text: `A refund for ${action.orderId} needs a human sign-off (${id}).`,
@@ -95,9 +112,10 @@ export const SupportAgent = actor("SupportAgent", {
 
       const reply: AgentMessage = {
         role: "agent",
-        text: action.kind === "search"
-          ? `Here's what I found: ${searchDocs(action.query)}`
-          : action.text,
+        text:
+          action.kind === "search"
+            ? `Here's what I found: ${searchDocs(action.query)}`
+            : action.text,
         at: Date.now(),
       };
       state.messages.push(reply);
@@ -105,8 +123,11 @@ export const SupportAgent = actor("SupportAgent", {
       return { awaitingApproval: null };
     },
 
-    Approve: async ({ id }: { id: string }, { state, emit, fail }) => {
-      if (!state.pending || state.pending.id !== id) throw fail.NoSuchApproval({ id });
+    Approve: async ({ id }: { id: string }, { state, emit, schedule, fail }) => {
+      if (!state.pending || state.pending.id !== id) {
+        throw fail.NoSuchApproval({ id });
+      }
+      await schedule.cancel(state.pending.timerId);
       const result = refundOrder(state.pending.orderId);
       state.pending = null;
       const reply: AgentMessage = { role: "agent", text: result, at: Date.now() };
@@ -115,8 +136,14 @@ export const SupportAgent = actor("SupportAgent", {
       emit.approvalResolved({ id, outcome: "approved" });
     },
 
-    Deny: async ({ id, reason }: { id: string; reason: string }, { state, emit, fail }) => {
-      if (!state.pending || state.pending.id !== id) throw fail.NoSuchApproval({ id });
+    Deny: async (
+      { id, reason }: { id: string; reason: string },
+      { state, emit, schedule, fail },
+    ) => {
+      if (!state.pending || state.pending.id !== id) {
+        throw fail.NoSuchApproval({ id });
+      }
+      await schedule.cancel(state.pending.timerId);
       state.pending = null;
       const reply: AgentMessage = {
         role: "agent",
@@ -128,10 +155,13 @@ export const SupportAgent = actor("SupportAgent", {
       emit.approvalResolved({ id, outcome: "denied" });
     },
 
-    // The expiry timer always fires; if the approval was already resolved,
-    // the id no longer matches and this is a no-op — the guard IS the cancel.
+    // Resolved approvals cancel their timer, so this normally fires only for
+    // a genuinely unanswered request. The id check stays as the backstop for
+    // a fire already in flight when the cancel landed.
     ExpireApproval: async ({ id }: { id: string }, { state, emit }) => {
-      if (!state.pending || state.pending.id !== id) return;
+      if (!state.pending || state.pending.id !== id) {
+        return;
+      }
       state.pending = null;
       const reply: AgentMessage = {
         role: "agent",

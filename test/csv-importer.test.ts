@@ -54,7 +54,9 @@ test(
       await empty.Start();
       throw new Error("should have thrown");
     } catch (e) {
-      if (!CsvImporter.is.NothingToImport(e)) throw e;
+      if (!CsvImporter.is.NothingToImport(e)) {
+        throw e;
+      }
     }
 
     const importer = engine.client(CsvImporter).getOrCreate(fresh("import-closed"));
@@ -64,7 +66,9 @@ test(
       await importer.Append({ lines: ["sku-2,2"] });
       throw new Error("should have thrown");
     } catch (e) {
-      if (!CsvImporter.is.AlreadyStarted(e)) throw e;
+      if (!CsvImporter.is.AlreadyStarted(e)) {
+        throw e;
+      }
     }
   },
   TIMEOUT,

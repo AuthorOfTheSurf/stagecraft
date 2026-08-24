@@ -17,7 +17,11 @@ import { onActivity, onUnexpected, type ActivityEvent, type UnexpectedReport } f
 
 const MAX_REPORTS = 100;
 
-export function startPanel({ port = 4949, quietAfterMs = 30_000, tracker }: { port?: number; quietAfterMs?: number; tracker?: IssueTracker } = {}) {
+export function startPanel({
+  port = 4949,
+  quietAfterMs = 30_000,
+  tracker,
+}: { port?: number; quietAfterMs?: number; tracker?: IssueTracker } = {}) {
   const reports: UnexpectedReport[] = [];
   const lastActivity = new Map<string, ActivityEvent>();
   // Per-instance running count of how many times each action has run. Kept on
@@ -28,7 +32,9 @@ export function startPanel({ port = 4949, quietAfterMs = 30_000, tracker }: { po
 
   const push = (event: "activity" | "report" | "issue", data: unknown) => {
     const line = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-    for (const send of clients) send(line);
+    for (const send of clients) {
+      send(line);
+    }
   };
 
   const stopActivity = onActivity((ev) => {
@@ -41,7 +47,9 @@ export function startPanel({ port = 4949, quietAfterMs = 30_000, tracker }: { po
   });
   const stopReports = onUnexpected((r) => {
     reports.unshift(r);
-    if (reports.length > MAX_REPORTS) reports.pop();
+    if (reports.length > MAX_REPORTS) {
+      reports.pop();
+    }
     // The fingerprint rides along so the page can fold duplicates.
     push("report", { ...r, fingerprint: fingerprintOf(r) });
   });
@@ -58,15 +66,33 @@ export function startPanel({ port = 4949, quietAfterMs = 30_000, tracker }: { po
         const stream = new ReadableStream({
           start(controller) {
             send = (line) => {
-              try { controller.enqueue(new TextEncoder().encode(line)); } catch { clients.delete(send); }
+              try {
+                controller.enqueue(new TextEncoder().encode(line));
+              } catch {
+                clients.delete(send);
+              }
             };
             clients.add(send);
             // Backlog on connect: liveness snapshot, issues, then reports oldest-first.
-            for (const [id, ev] of lastActivity) send(`event: activity\ndata: ${JSON.stringify({ ...ev, tally: tallies.get(id) })}\n\n`);
-            if (tracker) for (const i of tracker.issues.values()) send(`event: issue\ndata: ${JSON.stringify(issueRow(i))}\n\n`);
-            for (const r of [...reports].reverse()) send(`event: report\ndata: ${JSON.stringify({ ...r, fingerprint: fingerprintOf(r) })}\n\n`);
+            for (const [id, ev] of lastActivity) {
+              send(
+                `event: activity\ndata: ${JSON.stringify({ ...ev, tally: tallies.get(id) })}\n\n`,
+              );
+            }
+            if (tracker) {
+              for (const i of tracker.issues.values()) {
+                send(`event: issue\ndata: ${JSON.stringify(issueRow(i))}\n\n`);
+              }
+            }
+            for (const r of [...reports].reverse()) {
+              send(
+                `event: report\ndata: ${JSON.stringify({ ...r, fingerprint: fingerprintOf(r) })}\n\n`,
+              );
+            }
           },
-          cancel() { clients.delete(send); },
+          cancel() {
+            clients.delete(send);
+          },
         });
         return new Response(stream, {
           headers: { "content-type": "text/event-stream", "cache-control": "no-cache" },
@@ -75,7 +101,9 @@ export function startPanel({ port = 4949, quietAfterMs = 30_000, tracker }: { po
       if (url.pathname === "/resolve" && req.method === "POST" && tracker) {
         const fingerprint = url.searchParams.get("fp") ?? "";
         const issue = tracker.resolve(fingerprint);
-        if (issue) push("issue", issueRow(issue));
+        if (issue) {
+          push("issue", issueRow(issue));
+        }
         return new Response(issue ? "resolved" : "not found", { status: issue ? 200 : 404 });
       }
       return new Response(
@@ -89,7 +117,12 @@ export function startPanel({ port = 4949, quietAfterMs = 30_000, tracker }: { po
 
   return {
     url: `http://localhost:${server.port}`,
-    stop: () => { stopActivity(); stopReports(); stopIssues?.(); server.stop(true); },
+    stop: () => {
+      stopActivity();
+      stopReports();
+      stopIssues?.();
+      server.stop(true);
+    },
   };
 }
 

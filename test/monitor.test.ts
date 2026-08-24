@@ -28,7 +28,9 @@ test(
       await referee.Play({ alice: "rock", bob: "rock" }); // legal payload, forgotten case
       throw new Error("should have thrown");
     } catch (e) {
-      if (!isUnexpected(e)) throw e;
+      if (!isUnexpected(e)) {
+        throw e;
+      }
       expect(e.actor).toBe("Referee");
       expect(e.action).toBe("Play");
       expect(e.reportId).toMatch(/^[0-9a-f-]{36}$/);

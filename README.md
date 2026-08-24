@@ -55,11 +55,11 @@ export const ChatRoom = actor("ChatRoom", {
       if (!state.name) state.name = name;
     },
 
-    Join: async ({ name }: { name: string }, { state, emit, self }) => {
+    Join: async ({ name }: { name: string }, { state, emit, schedule }) => {
       const member = { name, joinedAt: Date.now() };
       state.members.push(member);
       emit.memberJoined({ member });
-      self.after(250).SendMessage({
+      schedule.after(250).SendMessage({
         sender: "Admin",
         text: `Welcome, ${name}!`,
       });
@@ -116,7 +116,7 @@ More exhibits live in [`examples/`](examples/): a durable AI agent session with 
 │   • Per-instance FIFO queues  │          │   • Sentry-style issue grouping  │
 │   • Atomic state rollback     │          │   • Discord & Slack Block Kit    │
 │   • Typed cross-actor errors  │          │   • SSE panel + QUIET watchdog   │
-│   • Durable self.after()      │          │   • Fail-fast two-key security   │
+│   • Durable schedule.after()  │          │   • Fail-fast two-key security   │
 │   • Client emit & routing     │          │   • Webhook connectivity tester  │
 └───────────────────────────────┘          └──────────────────────────────────┘
 ```
@@ -129,7 +129,8 @@ More exhibits live in [`examples/`](examples/): a durable AI agent session with 
 | **Atomic State Drafts** | Modify `state.count += 1` directly; commits only on success | State is cloned before execution; committed via `state.update()` on resolution or discarded on throw |
 | **Per-Instance FIFO Serialization** | Eliminates race conditions and lost updates without locks | Handlers queue on a per-instance `serialize` promise chain; distinct actors run concurrently |
 | **Typed Error Channels** | Declare domain errors with payload schemas; throw with `fail.X()` | Mapped to `Schema.TaggedErrorClass` dynamically; propagates typed across actor boundaries |
-| **Durable Timers (`self.after`)** | Schedule delayed messages: `self.after(ms).Action(payload)` | Backed by Rivet engine's durable scheduler (`schedule.after`), surviving reboots |
+| **Durable Timers (`schedule.after`)** | Schedule delayed messages: `const timerId = await schedule.after(ms).Action(payload)` | Backed by Rivet engine's durable scheduler (`schedule.after`), surviving reboots; hands back the scheduler's timer id |
+| **Timer Cancellation (`schedule.cancel`)** | Revoke a scheduled timer: `await schedule.cancel(timerId)` | Delegates to `schedule.cancel`; `false` means already fired or unknown. Keep a state guard in the handler as the backstop for a fire already in flight |
 | **Realtime Client Broadcast (`emit`)** | Broadcast events to connected clients: `emit.memberJoined(...)` | Routed through `rawRivetkitContext.broadcast()` |
 | **Direct Actor-to-Actor Routing (`actors`)** | Call other actors with full autocomplete: `actors(Mod).getOrCreate(k).Review(p)` | Uses action-level Effect context to create and invoke typed client proxies |
 | **Explicit Teardown (`destroy`)** | Cleanly terminate an actor instance when work is done | Invokes `rawRivetkitContext.destroy()` |
@@ -178,7 +179,7 @@ More exhibits live in [`examples/`](examples/): a durable AI agent session with 
 
 Four levels; you meet the layer where you are, and each one is real Effect underneath — so climbing never means rewriting.
 
-- **Level 0, your everyday code** — what you see above: plain async handlers, payload types on the signature, `throw fail.X()`, mutable state draft committed only on success, typed `emit` / `self.after(ms)` / `actors()`.
+- **Level 0, your everyday code** — what you see above: plain async handlers, payload types on the signature, `throw fail.X()`, mutable state draft committed only on success, typed `emit` / `schedule.after(ms)` / `actors()`.
 - **Level 1, the contract** — opt into declared schemas for wire validation and a standalone client contract.
 - **Level 2, the wiring** — declare resources/services (Effect's dependency channel), typed in the handler context, swappable in tests. Still no Effect syntax.
 - **Level 3, the engine room** — drop down to raw `Effect` / `@rivetkit/effect`, full power, a supported move.

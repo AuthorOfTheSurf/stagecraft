@@ -3,7 +3,7 @@
  * live in durable state, so a crash mid-import resumes from the last
  * committed chunk instead of restarting; `emit.progress` streams
  * rows-done/errors to a frontend (or the live panel) with no separate
- * realtime service. The work loop chains itself with `self.after(0)` —
+ * realtime service. The work loop chains itself with `schedule.after(0)` —
  * one chunk per transaction, never awaiting its own instance.
  */
 import { actor } from "../src/index.ts";
@@ -16,9 +16,13 @@ const CHUNK_SIZE = 25;
 // The exhibit's "database write": parse a `sku,qty` line or say why not.
 const importLine = (raw: string): { sku: string; qty: number } => {
   const [sku, qty] = raw.split(",").map((s) => s.trim());
-  if (!sku) throw new RangeError("missing sku");
+  if (!sku) {
+    throw new RangeError("missing sku");
+  }
   const n = Number(qty);
-  if (!Number.isInteger(n) || n < 0) throw new RangeError(`bad qty "${qty}"`);
+  if (!Number.isInteger(n) || n < 0) {
+    throw new RangeError(`bad qty "${qty}"`);
+  }
   return { sku, qty: n };
 };
 
@@ -41,23 +45,31 @@ export const CsvImporter = actor("CsvImporter", {
   handle: {
     // Uploads arrive in as many Append calls as the client likes.
     Append: async ({ lines }: { lines: string[] }, { state, fail }) => {
-      if (state.status !== "receiving") throw fail.AlreadyStarted({ status: state.status });
+      if (state.status !== "receiving") {
+        throw fail.AlreadyStarted({ status: state.status });
+      }
       state.lines.push(...lines);
       return { total: state.lines.length };
     },
 
-    Start: async (_: void, { state, self, fail }) => {
-      if (state.status !== "receiving") throw fail.AlreadyStarted({ status: state.status });
-      if (state.lines.length === 0) throw fail.NothingToImport({});
+    Start: async (_: void, { state, schedule, fail }) => {
+      if (state.status !== "receiving") {
+        throw fail.AlreadyStarted({ status: state.status });
+      }
+      if (state.lines.length === 0) {
+        throw fail.NothingToImport({});
+      }
       state.status = "running";
-      self.after(0).Work();
+      schedule.after(0).Work();
       return { total: state.lines.length };
     },
 
     // One chunk per message. The cursor commits with the chunk, so replayed
     // or resumed work never double-imports a committed row.
-    Work: async (_: void, { state, emit, self }) => {
-      if (state.status !== "running") return; // stale timer after completion
+    Work: async (_: void, { state, emit, schedule }) => {
+      if (state.status !== "running") {
+        return;
+      } // stale timer after completion
       const end = Math.min(state.cursor + CHUNK_SIZE, state.lines.length);
       for (; state.cursor < end; state.cursor++) {
         const raw = state.lines[state.cursor]!;
@@ -79,7 +91,7 @@ export const CsvImporter = actor("CsvImporter", {
         failed: state.errors.length,
       });
       if (state.cursor < state.lines.length) {
-        self.after(0).Work();
+        schedule.after(0).Work();
       } else {
         state.status = "done";
         emit.completed({

@@ -49,7 +49,9 @@ test(
       await agent.UserMessage({ text: "also refund order ord_2" });
       throw new Error("should have thrown");
     } catch (e) {
-      if (!SupportAgent.is.ApprovalPending(e)) throw e;
+      if (!SupportAgent.is.ApprovalPending(e)) {
+        throw e;
+      }
       expect(e.id).toBe("approval-1");
     }
 
@@ -61,7 +63,9 @@ test(
       await agent.Approve({ id: "approval-1" });
       throw new Error("should have thrown");
     } catch (e) {
-      if (!SupportAgent.is.NoSuchApproval(e)) throw e;
+      if (!SupportAgent.is.NoSuchApproval(e)) {
+        throw e;
+      }
     }
   },
   TIMEOUT,

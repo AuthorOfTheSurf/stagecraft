@@ -21,16 +21,35 @@ type FailOf<Er> = { [K in keyof Er]: (fields: Er[K]) => Error };
 type PayloadOf<H extends AnyHandler> = Parameters<H>[0];
 type ResultOf<H extends AnyHandler> = Awaited<ReturnType<H>>;
 
-/** What a handler receives alongside its payload. */
+/**
+ * What a handler receives alongside its payload. The rule of the surface:
+ * durable actor data lives on `state`; everything else here is a runtime
+ * capability (engine scheduling, broadcast, actor references, …).
+ */
 export interface Ctx<S, Ev, Er> {
   /** Mutable draft of durable state; committed only if the handler succeeds. */
   state: S;
   /** Typed broadcast to connected clients. */
   emit: EmitOf<Ev>;
-  /** Schedule a message to this same actor: `self.after(ms).SendMessage(p)`. */
-  self: { after: (ms: number) => Record<string, (payload?: any) => void> };
+  /**
+   * Engine-managed durable scheduling. Delay a message to this actor:
+   * `schedule.after(ms).SendMessage(p)` — returns a durable timer id; keep
+   * it in state if you may need to `schedule.cancel` it later, ignore it
+   * for fire-and-forget.
+   */
+  schedule: {
+    after: (ms: number) => Record<string, (payload?: any) => Promise<string>>;
+    /**
+     * Revoke a scheduled timer. `false` means it already fired or the id is
+     * unknown. Scheduling does NOT roll back with a failed handler's state
+     * draft, so cancellation is also the compensation tool for that case.
+     */
+    cancel: (timerId: string) => Promise<boolean>;
+  };
   /** Call another actor: `actors(Moderator).getOrCreate(key).Review(p)`. */
-  actors: <W extends AnyActorDef>(other: W) => {
+  actors: <W extends AnyActorDef>(
+    other: W,
+  ) => {
     getOrCreate: (key: string) => ClientMethods<W["__handle"]>;
   };
   /** Typed declared errors: `throw fail.BannedWords({ reason: "…" })`. */
@@ -55,12 +74,7 @@ export interface AnyActorDef {
   readonly is: Record<string, (e: unknown) => boolean>;
 }
 
-export interface ActorDef<
-  S,
-  Ev,
-  Er,
-  H extends Record<string, AnyHandler>,
-> extends AnyActorDef {
+export interface ActorDef<S, Ev, Er, H extends Record<string, AnyHandler>> extends AnyActorDef {
   readonly __handle: H;
   readonly is: Guards<Er>;
 }
@@ -70,23 +84,14 @@ export interface ActorDef<
 // every action declares the union of every registered error).
 const errorClasses = new Map<string, any>();
 const errorUnion = () =>
-  errorClasses.size > 0
-    ? Schema.Union([...errorClasses.values()])
-    : undefined;
+  errorClasses.size > 0 ? Schema.Union([...errorClasses.values()]) : undefined;
 
 // Declared-error data is flattened onto an Error instance (see `flatten`),
 // so these field names would silently clobber built-in Error props.
-const RESERVED_ERROR_FIELDS = new Set([
-  "name",
-  "message",
-  "stack",
-  "cause",
-  "_tag",
-]);
+const RESERVED_ERROR_FIELDS = new Set(["name", "message", "stack", "cause", "_tag"]);
 
 const isDeclaredError = (e: unknown): e is { _tag: string; data: any } =>
-  typeof e === "object" && e !== null && "_tag" in e &&
-  errorClasses.has((e as any)._tag);
+  typeof e === "object" && e !== null && "_tag" in e && errorClasses.has((e as any)._tag);
 
 /** Flatten a wire error class instance into the dream-surface shape. */
 const flatten = (e: { _tag: string; data: any }) =>
@@ -146,7 +151,11 @@ export function onActivity(fn: (ev: ActivityEvent) => void): () => void {
 
 const notifyActivity = (ev: ActivityEvent) => {
   for (const fn of activityListeners) {
-    try { fn(ev); } catch { /* a broken listener must not break the actor */ }
+    try {
+      fn(ev);
+    } catch {
+      /* a broken listener must not break the actor */
+    }
   }
 };
 
@@ -163,8 +172,7 @@ export const isUnexpected = (
   reportId: string;
   actor: string;
   action: string;
-} =>
-  typeof e === "object" && e !== null && (e as any)._tag === UNEXPECTED;
+} => typeof e === "object" && e !== null && (e as any)._tag === UNEXPECTED;
 
 /**
  * Production knobs for one actor. `@rivetkit/effect` forwards only `name` and
@@ -218,7 +226,9 @@ export function actor<
   const fail = new Proxy({} as FailOf<Er>, {
     get: (_, tag: string) => (fields: any) => {
       const Cls = errorClasses.get(tag);
-      if (!Cls) throw new Error(`undeclared error: ${tag}`);
+      if (!Cls) {
+        throw new Error(`undeclared error: ${tag}`);
+      }
       for (const key of Object.keys(fields ?? {})) {
         if (RESERVED_ERROR_FIELDS.has(key)) {
           throw new Error(
@@ -247,18 +257,24 @@ export function actor<
         chain = next.catch(() => undefined);
         return next;
       };
-      const makeCtx = (draft: S, run: <A>(e: Effect.Effect<A, any, any>) => Promise<A>): Ctx<S, Ev, Er> => ({
+      const makeCtx = (
+        draft: S,
+        run: <A>(e: Effect.Effect<A, any, any>) => Promise<A>,
+      ): Ctx<S, Ev, Er> => ({
         state: draft,
         emit: new Proxy({} as EmitOf<Ev>, {
-          get: (_, event: string) => (payload: any) =>
-            rawRivetkitContext.broadcast(event, payload),
+          get: (_, event: string) => (payload: any) => rawRivetkitContext.broadcast(event, payload),
         }),
-        self: {
+        schedule: {
           after: (ms: number) =>
-            new Proxy({}, {
-              get: (_, action: string) => (payload?: any) =>
-                rawRivetkitContext.schedule.after(ms, action, { data: payload }),
-            }),
+            new Proxy(
+              {},
+              {
+                get: (_, action: string) => (payload?: any) =>
+                  rawRivetkitContext.schedule.after(ms, action, { data: payload }),
+              },
+            ),
+          cancel: (timerId: string) => rawRivetkitContext.schedule.cancel(timerId),
         },
         actors: (other: AnyActorDef) => ({
           getOrCreate: (key: string) =>
@@ -266,10 +282,10 @@ export function actor<
               get: (_, method: string) => async (payload: any) => {
                 const accessor: any = await run(other.contract.client);
                 const handle = accessor.getOrCreate(key);
-                const outcome = await run(
-                  Effect.result(handle[method]({ data: payload })),
-                );
-                if (Result.isFailure(outcome)) throw outcome.failure;
+                const outcome = await run(Effect.result(handle[method]({ data: payload })));
+                if (Result.isFailure(outcome)) {
+                  throw outcome.failure;
+                }
                 return outcome.success;
               },
             }),
@@ -282,57 +298,69 @@ export function actor<
       for (const tag of actionNames) {
         handlers[tag] = ({ payload }: any) =>
           Effect.flatMap(Effect.context<never>(), (actionContext) => {
-          const run = Effect.runPromiseWith(actionContext);
-          return Effect.tryPromise({
-            try: () => serialize(async () => {
-              const t0 = Date.now();
-              const activity = (outcome: ActivityEvent["outcome"]) =>
-                notifyActivity({ actor: name, key: instanceKey, action: tag, outcome, ms: Date.now() - t0, at: Date.now() });
-              const current = await run(state.get.pipe(Effect.orDie));
-              const draft = JSON.parse(JSON.stringify(current ?? {})) as S;
-              let result: unknown;
-              try {
-                result = await config.handle[tag]!(payload?.data, makeCtx(draft, run as any));
-              } catch (e) {
-                if (isDeclaredError(e)) {
-                  activity("declared-error");
-                  throw e;
-                }
-                const err = e instanceof Error ? e : new Error(String(e));
-                const report: UnexpectedReport = {
-                  reportId: crypto.randomUUID(),
-                  actor: name,
-                  key: instanceKey,
-                  action: tag,
-                  payload: payload?.data,
-                  state: current,
-                  error: { name: err.name, message: err.message, stack: err.stack },
-                  at: Date.now(),
-                };
-                for (const fn of reporters) {
-                  try { fn(report); } catch { /* a broken reporter must not mask the report */ }
-                }
-                activity("unexpected-error");
-                const Cls = errorClasses.get(UNEXPECTED)!;
-                throw new Cls({
-                  data: {
-                    reportId: report.reportId,
-                    actor: name,
-                    action: tag,
-                    message: err.message,
-                  },
-                });
-              }
-              await run(state.update(() => draft).pipe(Effect.orDie));
-              activity("ok");
-              return result;
-            }),
-            catch: (e) => e,
-          }).pipe(
-            Effect.catch((e: unknown) =>
-              isDeclaredError(e) ? Effect.fail(e as never) : Effect.die(e),
-            ),
-          );
+            const run = Effect.runPromiseWith(actionContext);
+            return Effect.tryPromise({
+              try: () =>
+                serialize(async () => {
+                  const t0 = Date.now();
+                  const activity = (outcome: ActivityEvent["outcome"]) =>
+                    notifyActivity({
+                      actor: name,
+                      key: instanceKey,
+                      action: tag,
+                      outcome,
+                      ms: Date.now() - t0,
+                      at: Date.now(),
+                    });
+                  const current = await run(state.get.pipe(Effect.orDie));
+                  const draft = JSON.parse(JSON.stringify(current ?? {})) as S;
+                  let result: unknown;
+                  try {
+                    result = await config.handle[tag]!(payload?.data, makeCtx(draft, run as any));
+                  } catch (e) {
+                    if (isDeclaredError(e)) {
+                      activity("declared-error");
+                      throw e;
+                    }
+                    const err = e instanceof Error ? e : new Error(String(e));
+                    const report: UnexpectedReport = {
+                      reportId: crypto.randomUUID(),
+                      actor: name,
+                      key: instanceKey,
+                      action: tag,
+                      payload: payload?.data,
+                      state: current,
+                      error: { name: err.name, message: err.message, stack: err.stack },
+                      at: Date.now(),
+                    };
+                    for (const fn of reporters) {
+                      try {
+                        fn(report);
+                      } catch {
+                        /* a broken reporter must not mask the report */
+                      }
+                    }
+                    activity("unexpected-error");
+                    const Cls = errorClasses.get(UNEXPECTED)!;
+                    throw new Cls({
+                      data: {
+                        reportId: report.reportId,
+                        actor: name,
+                        action: tag,
+                        message: err.message,
+                      },
+                    });
+                  }
+                  await run(state.update(() => draft).pipe(Effect.orDie));
+                  activity("ok");
+                  return result;
+                }),
+              catch: (e) => e,
+            }).pipe(
+              Effect.catch((e: unknown) =>
+                isDeclaredError(e) ? Effect.fail(e as never) : Effect.die(e),
+              ),
+            );
           });
       }
       return contract.of(handlers);
@@ -418,7 +446,8 @@ export function testEngine(...defs: (AnyActorDef | Layer.Layer<never, never, any
       };
     },
     /** Run a raw Effect against this engine's runtime (for raw-SDK suites). */
-    run: <A, E>(effect: Effect.Effect<A, E, any>) => runtime.runPromise(effect as any) as Promise<A>,
+    run: <A, E>(effect: Effect.Effect<A, E, any>) =>
+      runtime.runPromise(effect as any) as Promise<A>,
     dispose: () => runtime.dispose(),
   };
 }

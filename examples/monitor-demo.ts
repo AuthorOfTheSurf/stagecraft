@@ -16,8 +16,7 @@ const BEATS: Record<Choice, Choice> = {
   scissors: "paper",
 };
 
-const winnerOf = (a: Choice, b: Choice) =>
-  BEATS[a] === b ? "a" : BEATS[b] === a ? "b" : "draw";
+const winnerOf = (a: Choice, b: Choice) => (BEATS[a] === b ? "a" : BEATS[b] === a ? "b" : "draw");
 
 // The bug: this table quietly swallows "draw" — someone always wins, right?
 const PLAYER: Record<string, "Alice" | "Bob"> = { a: "Alice", b: "Bob" };
@@ -25,10 +24,7 @@ const PLAYER: Record<string, "Alice" | "Bob"> = { a: "Alice", b: "Bob" };
 export const Referee = actor("Referee", {
   state: { scores: { Alice: { wins: 0 }, Bob: { wins: 0 } } },
   handle: {
-    Play: async (
-      { alice, bob }: { alice: Choice; bob: Choice },
-      { state },
-    ) => {
+    Play: async ({ alice, bob }: { alice: Choice; bob: Choice }, { state }) => {
       const player = PLAYER[winnerOf(alice, bob)]!;
       state.scores[player].wins += 1;
       return { winner: player, scores: state.scores };
@@ -52,4 +48,3 @@ export function monitor() {
   const stop = onUnexpected((r) => reports.push(r));
   return { reports, stop };
 }
-
